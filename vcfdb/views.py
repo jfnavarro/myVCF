@@ -1,9 +1,5 @@
-from django.shortcuts import render, render_to_response
-
-# Create your views here.
-# Generic view from django
 from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.apps import apps
 import ast
 import json
@@ -12,31 +8,18 @@ from collections import Counter
 from collections import OrderedDict
 import numpy as np
 import requests
+from vcfdb.base_models import DbInfo, Groups
 
-# Generic view from django
-from django.views import generic
-
-# Datatable view from django-datatable-view package
-# from django_datatables_view.base_datatable_view import BaseDatatableView
-# from datatableview.views import DatatableView
-
-# Data table from django-table
-# from table.views import FeedDataView
-# from .tables import VcfTable
-
-# Import models
-# Vcf model
 app_label = "vcfdb"
-from vcfdb.models import *
-from vcfdb.base_models import Log, Gene84, Gene75, DbInfo, Groups
 
-## DB containing common data
+# DB containing common data
 actual_db = "default"
-## DB containing mutations
+
+# DB containing mutations
 project_db = "projects"
 
 
-def error404(request):
+def error404(request, exception):
     context = {'test': "OK"}
     return render(request, '404.html', context)
 
@@ -47,8 +30,7 @@ def error500(request):
 
 
 def not_found(request, project_name, q):
-    context = {'q': q,
-               'project_name': project_name}
+    context = {'q': q, 'project_name': project_name}
     return render(request, 'not_found.html', context)
 
 
@@ -59,7 +41,7 @@ def project_homepage(request, project_name):
     gene_annotation = dbinfo.gene_annotation
     assembly_version = dbinfo.assembly_version
     context = {'project_name': project_name,
-               'assembly_version' : assembly_version,
+               'assembly_version': assembly_version,
                'sw_annotation': sw_annotation,
                'gene_annotation': gene_annotation}
     return render(request, 'index.html', context)
@@ -173,14 +155,14 @@ def display_gene_results(request, gene_ensgene, project_name):
         mutations_category = []
         if sw_annotation == "annovar":
             # contains the ensg
-            #mutations = model.objects.using(project_db).filter(gene_ensgene__icontains=ensgene)
+            # mutations = model.objects.using(project_db).filter(gene_ensgene__icontains=ensgene)
             # exact match
             mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
             for m in mutations:
                 mutations_category.append(getattr(m, mutation_col).encode())
         else:
             # contains the ensg
-            mutations = model.objects.using(project_db).filter(gene__icontains=ensgene)
+            # mutations = model.objects.using(project_db).filter(gene__icontains=ensgene)
             # exact match
             mutations = model.objects.using(project_db).filter(gene__iexact=ensgene)
             for m in mutations:
@@ -224,7 +206,7 @@ def display_gene_results(request, gene_ensgene, project_name):
         # Get the mutation data
         mutations, mutations_category = get_mutations(model, sw_annotation, mutation_col, gene_ensgene, project_db)
 
-        ## Get data for plot
+        # Get data for plot
         # Get mutation categories
         category = [key.encode('ascii', 'ignore') for key in mutations_category.keys()]
         values = mutations_category.values()
@@ -305,7 +287,7 @@ def display_region_results(request, region, project_name):
         # Get the mutation data
         mutations, mutations_category = get_mutations(model, sw_annotation, mutation_col, region, project_db)
 
-        ## Get data for plot
+        # Get data for plot
         # Get mutation categories
         category = [key.encode('ascii', 'ignore') for key in mutations_category.keys()]
         values = mutations_category.values()
@@ -396,16 +378,14 @@ def display_variant_results(request, variant, project_name):
             ensgene_id = "Null"
             gene = "Null"
 
-
         if mutations == 0:
             context = {'q': variant,
                        'project_name': project_name}
             template = 'not_found.html'
-
         else:
             low_ac = 0
-            covered_samples = mutations.an/2
-            if mutations.an <= ((n_samples*2)*80/100):
+            covered_samples = mutations.an / 2
+            if mutations.an <= ((n_samples * 2) * 80 / 100):
                 low_ac = 1
 
             zigosity_index = ["0", "1", "2"]
@@ -427,8 +407,8 @@ def display_variant_results(request, variant, project_name):
                        'zigosity_index': zigosity_index,
                        'zigosity_list': zigosity_list,
                        'project_name': project_name,
-                       'assembly_label' : assembly_label,
-                       'sw_annotation' : sw_annotation,
+                       'assembly_label': assembly_label,
+                       'sw_annotation': sw_annotation,
                        'variant': variant}
             template = 'variant_results.html'
 
@@ -460,7 +440,6 @@ def get_exac_data(request, variant, project_name):
             populations = exac_data["pop_ans"].keys()
 
             res_data = []
-            tmp = {}
             for pop in populations:
                 tmp = {}
                 tmp["population"] = pop
@@ -469,7 +448,6 @@ def get_exac_data(request, variant, project_name):
                 tmp["pop_homs"] = exac_data["pop_homs"][pop]
                 tmp["pop_af"] = float("{0:.6f}".format(exac_data["pop_acs"][pop] / float(exac_data["pop_ans"][pop])))
                 res_data.append(tmp)
-
         else:
             response = False
             res_data = {}
@@ -563,13 +541,12 @@ def get_esp_data(request, variant, project_name):
         res_data.append(tmp)
 
         # AA
-        tmp = {}
-        tmp["population"] = "AA - African American"
+        tmp = {"population": "AA - African American"}
         try:
             tmp["population"] = "AA - African American"
             tmp["pop_af"] = data[0]['colocated_variants'][0]['aa_maf']
         except:
-            tmp={}
+            tmp = {}
             val = 1
 
         res_data.append(tmp)
@@ -675,9 +652,9 @@ def get_exac_data_hg38(request, variant, project_name):
                     "exac_afr_maf": "African",
                     "exac_eas_maf": "East Asian",
                     "exac_sas_maf": "South Asian",
-                    "exac_amr_maf" : "Latino",
+                    "exac_amr_maf": "Latino",
                     "exac_oth_maf": "Other",
-                    "exac_maf" : "Total"}
+                    "exac_maf": "Total"}
 
         # Tmp results
         for pop in pop_dict.keys():
@@ -720,7 +697,7 @@ def get_insilico_pred(request, variant, project_name):
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     assembly_version = dbinfo.assembly_version
 
-    url = "http://myvariant.info/v1/variant/"+ v +"?fields=dbnsfp.polyphen2%2Cdbnsfp.sift"
+    url = "http://myvariant.info/v1/variant/" + v + "?fields=dbnsfp.polyphen2%2Cdbnsfp.sift"
 
     r = requests.get(url)
     if r.ok:
@@ -729,6 +706,7 @@ def get_insilico_pred(request, variant, project_name):
     context = json.dumps({'response': response,
                           'data': data})
     return HttpResponse(context)
+
 
 #
 # settings: Get the COL_LIST FROM the DB
@@ -784,6 +762,7 @@ def get_col_list(request, project_name):
                           'sanity_check': sanity_check})
     return HttpResponse(context)
 
+
 #
 # get_sample_list: Get the Sample_LIST FROM the DB
 #
@@ -807,6 +786,7 @@ def get_sample_list(request, project_name):
                           'sanity_check': sanity_check})
     return HttpResponse(context)
 
+
 def check_group_name(request, project_name):
     group_name = request.POST['new_group_name']
     # __iexact is case-insensitive
@@ -820,6 +800,7 @@ def check_group_name(request, project_name):
     else:
         context = json.dumps({'valid': False})
     return HttpResponse(context)
+
 
 def delete_group(request, project_name):
     # AJAX request
@@ -835,9 +816,6 @@ def delete_group(request, project_name):
     return HttpResponse(context)
 
 
-#
-# save_preferences (AJAX): Modify the COL Visualization according to the user choice
-#
 def save_preferences(request, project_name):
     # Get the user-defined cols
     cols = request.POST.getlist("cols")
@@ -847,10 +825,10 @@ def save_preferences(request, project_name):
     s = ','
     new_col = s.join(cols).split(',')
 
-    ## Update the default_col field
+    # Update the default_col field
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     dbinfo.default_col = new_col
-    ## Update mutation_col field
+    # Update mutation_col field
     dbinfo.mutation_col = mutation_col
 
     # Save preferences
@@ -864,9 +842,6 @@ def save_preferences(request, project_name):
     return HttpResponse(context)
 
 
-#
-#
-#
 def save_groups(request, project_name):
     # Get the user-defined cols
     sample_list = request.POST.getlist("samples_list")
@@ -876,11 +851,11 @@ def save_groups(request, project_name):
     s = ','
     samples = s.join(sample_list).split(',')
 
-    ## Get project_id
+    # Get project_id
     project_id = DbInfo.objects.get(project_name=project_name).id
 
-    ## Add group
-    g = Groups(p_id = project_id, project_name = project_name, group_name = group_name, samples = samples)
+    # Add group
+    g = Groups(p_id=project_id, project_name=project_name, group_name=group_name, samples=samples)
     g.save()
     context = json.dumps({'r': group_name,
                           'p': project_id,
@@ -893,7 +868,6 @@ def save_groups(request, project_name):
     return HttpResponse(context)
 
 
-
 def summary_statistics(request, project_name):
     msg_validate = "OK"
 
@@ -901,10 +875,10 @@ def summary_statistics(request, project_name):
     model_project = apps.get_model(app_label=app_label,
                                    model_name=project_name)
 
-    ## Get DB INFO
+    # Get DB INFO
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    samples = ast.literal_eval(dbinfo.samples)
-    samples = [sample.replace('-', '_').lower() for sample in samples]
+    # samples = ast.literal_eval(dbinfo.samples)
+    # samples = [sample.replace('-', '_').lower() for sample in samples]
 
     # Annotation sw
     sw_annotation = dbinfo.sw_annotation
@@ -922,14 +896,12 @@ def summary_statistics(request, project_name):
                'msg_validate': msg_validate}
     return render(request, 'summary_statistics.html', context)
 
-#
-# get_qual_vcf: Get the quality distribution of VCF quality field
-#
+
 def get_qual_vcf(request, project_name, cache):
     # Cache key
     cache_key = project_name + "/get_qual_vcf"
 
-    if cache.has_key(cache_key) == False:
+    if not cache.has_key(cache_key):
         # Get the project model
         model_project = apps.get_model(app_label=app_label,
                                        model_name=project_name)
@@ -948,11 +920,9 @@ def get_qual_vcf(request, project_name, cache):
         qual_bins = np.power(qual_bins, 10)
 
         # Generate qual_data array
-        data=[]
-        for i in range(0,len(qual_data)-1):
-            tmp=[]
-            tmp.append(qual_bins[i])
-            tmp.append(qual_data[i])
+        data = []
+        for i in range(0, len(qual_data) - 1):
+            tmp = [qual_bins[i], qual_data[i]]
             data.append(tmp)
 
         cache[cache_key] = json.dumps({'qual_data': data,
@@ -963,9 +933,6 @@ def get_qual_vcf(request, project_name, cache):
     return HttpResponse(context)
 
 
-#
-# get_mean_variations: Get mean number of variations for each sample
-#
 def get_mean_variations(request, project_name, cache):
     # Cache key
     cache_key = project_name + "/get_mean_variations"
@@ -977,7 +944,7 @@ def get_mean_variations(request, project_name, cache):
         upper = p75 + 1.5 * (p75 - p25)
         return value <= lower or value >= upper
 
-    if cache.has_key(cache_key) == False:
+    if not cache.has_key(cache_key):
         # Get the project model
         model_project = apps.get_model(app_label=app_label,
                                        model_name=project_name)
@@ -1033,19 +1000,16 @@ def get_mean_variations(request, project_name, cache):
     return HttpResponse(context)
 
 
-#
-# get_chr_variations: Get the number of variations stratified by biotype
-#
 def get_chr_variations(request, project_name, cache):
     # Cache key
     cache_key = project_name + "/get_chr_variations"
 
-    if cache.has_key(cache_key) == False:
+    if not cache.has_key(cache_key):
         # Get the project model
         model_project = apps.get_model(app_label=app_label,
                                        model_name=project_name)
 
-        ## Get DB INFO
+        # Get DB INFO
         dbinfo = DbInfo.objects.filter(project_name=project_name).first()
         # Chromosome column
         chr_col = "chrom"
@@ -1059,11 +1023,10 @@ def get_chr_variations(request, project_name, cache):
         # Get the summary count of the mutation by chr
         chr_summary = Counter(model_project.objects.using(project_db).values_list(chr_col, mutation_col))
 
-        ## Format data for Highcharts --> BAR CHART
+        # Format data for Highcharts --> BAR CHART
         # Categories = Chromosomes
         # Get the data
         tmp_plot_data = {}
-        visible_data = {}
         for func in functions:
             for chr in chromosomes:
                 data = chr_summary[chr, func]
@@ -1085,19 +1048,16 @@ def get_chr_variations(request, project_name, cache):
     return HttpResponse(context)
 
 
-#
-# get_biotype_variations: Get the number of variations stratified by biotype
-#
 def get_biotype_variations(request, project_name, cache):
     # Cache key
     cache_key = project_name + "/get_biotype_variations"
 
-    if cache.has_key(cache_key) == False:
+    if not cache.has_key(cache_key):
         # Get the project model
         model_project = apps.get_model(app_label=app_label,
                                        model_name=project_name)
 
-        ## Get DB INFO
+        # Get DB INFO
         dbinfo = DbInfo.objects.filter(project_name=project_name).first()
 
         # Get sw annotation
@@ -1126,19 +1086,16 @@ def get_biotype_variations(request, project_name, cache):
     return HttpResponse(context)
 
 
-#
-# get_exonictype_variations: Get the number of variations stratified by exonic function
-#
 def get_exonictype_variations(request, project_name, cache):
     # Cache key
     cache_key = project_name + "/get_exonictype_variations"
 
-    if cache.has_key(cache_key) == False:
+    if not cache.has_key(cache_key):
         # Get the project model
         model_project = apps.get_model(app_label=app_label,
                                        model_name=project_name)
 
-        ## Get DB INFO
+        # Get DB INFO
         dbinfo = DbInfo.objects.filter(project_name=project_name).first()
 
         # Consequence column
@@ -1160,9 +1117,6 @@ def get_exonictype_variations(request, project_name, cache):
     return HttpResponse(context)
 
 
-#
-# get_exonictype_variations: Get the mutations of the top mutated genes
-#
 def get_top_genes(request, project_name, cache):
     # N genes to display
     n_genes = 20
@@ -1170,11 +1124,11 @@ def get_top_genes(request, project_name, cache):
     # Cache key
     cache_key = project_name + "/get_top_genes"
 
-    if cache.has_key(cache_key) == False:
+    if not cache.has_key(cache_key):
         # Get the project model
         model_project = apps.get_model(app_label=app_label,
                                        model_name=project_name)
-        ## Get DB INFO
+        # Get DB INFO
         dbinfo = DbInfo.objects.filter(project_name=project_name).first()
 
         # Get sw annotation
@@ -1189,7 +1143,7 @@ def get_top_genes(request, project_name, cache):
         else:
             gene_col = "gene_ensgene"
 
-        ## Get data
+        # Get data
         # Get the gene list
         res_genes = Counter(model_project.objects.using(project_db).all().values_list(gene_col, flat=True))
         # Get the first n_genes
@@ -1222,8 +1176,8 @@ def get_top_genes(request, project_name, cache):
     context = cache[cache_key]
     return HttpResponse(context)
 
-def plink_gene(request, project_name, gene_ensgene):
 
+def plink_gene(request, project_name, gene_ensgene):
     def get_mutations_plink(model, sw_annotation, ensgene, project_db):
         # return the mutations and default_col of a particular gene based on the sw_annotation
         if sw_annotation == "annovar":
@@ -1244,7 +1198,7 @@ def plink_gene(request, project_name, gene_ensgene):
 
     mutations = get_mutations_plink(model, sw_annotation, gene_ensgene, project_db)
 
-    ## generate PED/MAP string
+    # generate PED/MAP string
     # MAP file
     # The fields in a MAP file are:
     #    Chromosome
@@ -1260,10 +1214,10 @@ def plink_gene(request, project_name, gene_ensgene):
                           "0",
                           str(m.pos),
                           "\n"])
-        map=map + s_map
+        map = map + s_map
     for s in samples:
         # Inizialize with sample information
-        s_ped = ",".join([project_name, s , "0", "0", "0", "0"])
+        s_ped = ",".join([project_name, s, "0", "0", "0", "0"])
         # Get genotype
         gt = getattr(m, s.lower(), "notfound")
         for m in mutations:
@@ -1278,8 +1232,8 @@ def plink_gene(request, project_name, gene_ensgene):
         s_ped = s_ped + "\n"
         ped = ped + s_ped
 
-    map_filename = "_".join([project_name,gene_ensgene]) + ".map"
-    ped_filename = "_".join([project_name,gene_ensgene]) + ".ped"
+    map_filename = "_".join([project_name, gene_ensgene]) + ".map"
+    ped_filename = "_".join([project_name, gene_ensgene]) + ".ped"
 
     context = json.dumps({'map_filename': map_filename,
                           'map': map,
@@ -1288,8 +1242,8 @@ def plink_gene(request, project_name, gene_ensgene):
                           })
     return HttpResponse(context)
 
-def plink_region(request, project_name, region):
 
+def plink_region(request, project_name, region):
     def get_mutations_plink(model, region, project_db):
         # Split region in CHR, START, END
         r = region.split("-")
@@ -1311,7 +1265,7 @@ def plink_region(request, project_name, region):
 
     mutations = get_mutations_plink(model, region, project_db)
 
-    ## generate PED/MAP string
+    # generate PED/MAP string
     # MAP file
     # The fields in a MAP file are:
     #    Chromosome
@@ -1327,10 +1281,10 @@ def plink_region(request, project_name, region):
                           "0",
                           str(m.pos),
                           "\n"])
-        map=map + s_map
+        map = map + s_map
     for s in samples:
         # Inizialize with sample information
-        s_ped = ",".join([project_name, s , "0", "0", "0", "0"])
+        s_ped = ",".join([project_name, s, "0", "0", "0", "0"])
         # Get genotype
         gt = getattr(m, s.lower(), "notfound")
         for m in mutations:
@@ -1345,8 +1299,8 @@ def plink_region(request, project_name, region):
         s_ped = s_ped + "\n"
         ped = ped + s_ped
 
-    map_filename = "_".join([project_name,region]) + ".map"
-    ped_filename = "_".join([project_name,region]) + ".ped"
+    map_filename = "_".join([project_name, region]) + ".map"
+    ped_filename = "_".join([project_name, region]) + ".ped"
 
     context = json.dumps({'map_filename': map_filename,
                           'map': map,

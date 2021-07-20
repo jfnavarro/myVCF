@@ -12,13 +12,8 @@ https://docs.djangoproject.com/en/1.8/ref/settings/
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
-# MAC library workaround
-import sys
-if sys.path[0] != "/Library/Python/2.7/site-packages":
-    sys.path.insert(0,"/Library/Python/2.7/site-packages")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.8/howto/deployment/checklist/
@@ -30,7 +25,6 @@ SECRET_KEY = 'mpg2q+(rw%^=s)mp)(^38hn+2vpso0pf75y#@iw*3nd&ox_k0^'
 DEBUG = False
 
 ALLOWED_HOSTS = ['localhost']
-
 
 # Application definition
 
@@ -46,12 +40,12 @@ INSTALLED_APPS = (
     'vcfdb',
 )
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -77,7 +71,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'myVCF_django.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/1.9/ref/settings/#databases
 
@@ -98,22 +91,15 @@ DATABASES = {
 # https://docs.djangoproject.com/en/1.8/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'Europe/Rome'
-
 USE_I18N = True
-
 USE_L10N = True
-
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.8/howto/static-files/
 
-STATICFILES_DIRS = (
-    os.path.join(BASE_DIR, "static"),
-    os.path.join(BASE_DIR, "data"),)
+STATICFILES_DIRS = (os.path.join(BASE_DIR, "data"),)
 
 STATIC_URL = '/static/'
 
@@ -121,3 +107,5 @@ if DEBUG:
    STATIC_ROOT = os.path.join(BASE_DIR, '/static')
 else:
    STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'

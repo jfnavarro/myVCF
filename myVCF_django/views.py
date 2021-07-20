@@ -1,9 +1,7 @@
-__author__ = 'pietrelli'
+# Main views for myVCF site
 
-## Main views for myVCF site
-
-from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.apps import apps
 import json
 import re
@@ -16,8 +14,10 @@ import sqlite3
 from vcfdb.base_models import DbInfo, Groups
 
 app_label = "vcfdb"
-## DB containing mutations
+
+# DB containing mutations
 project_db = "projects"
+
 
 def main_page(request):
     db_list = DbInfo.objects.values("project_name",
@@ -46,9 +46,6 @@ def check_project_name(request):
     return HttpResponse(context)
 
 
-#
-# delete_db:
-#
 def delete_db(request):
     # AJAX request
     project_name = request.POST['project_name']
@@ -83,9 +80,7 @@ def delete_db(request):
                           'msg_validate': msg_validate})
     return HttpResponse(context)
 
-#
-# select_vcf: Comment
-#
+
 def select_vcf(request):
     # path = request.POST['static_path']
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -96,13 +91,9 @@ def select_vcf(request):
     return HttpResponse(context)
 
 
-#
-# preprocessing_vcf: Comment
-#
 def preprocessing_vcf(request):
-    ## Path doesn't works because it not reads relative path on static
-    ## path = request.POST['static_path']
-    ##
+    # Path doesn't works because it not reads relative path on static
+    # path = request.POST['static_path']
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     vcf_dir = os.path.join(base_dir, "data/VCFs")
     vcf_name = request.POST['vcf_name']
@@ -129,7 +120,6 @@ def preprocessing_vcf(request):
         if vcf_handler.infos.keys() == []:
             msg = "This VCF does not contain INFO fields..."
             return valid, msg, annotation
-
         # Check if contains at least 1 sample
         elif len(vcf_handler.samples) == 0:
             msg = "This VCF does not contain ANY sample genotype..."
@@ -139,36 +129,31 @@ def preprocessing_vcf(request):
         # Annovar = Gene_ensGene field
         # Annovar exonic annotation = ExonicFunc_ensGene
         # VEP = CSQ field
-        elif ( (annovar_field or annovar_exonic_field or annovar_genesymbol_field) not in vcf_handler.infos.keys()) and (vep_field not in vcf_handler.infos.keys()):
+        elif ((annovar_field or annovar_exonic_field or annovar_genesymbol_field) not in vcf_handler.infos.keys()) \
+                and (vep_field not in vcf_handler.infos.keys()):
             msg = "This VCF is not annotated with Annovar or VEP software<br>" \
                   "The system consider this VCF as non-human file" \
                   "Please follow the manual to make a human VCF suitable for myVCF, if the reference is human!!"
             valid = True
             annotation = "other"
             return valid, msg, annotation
-
         else:
             if annovar_field in vcf_handler.infos.keys():
-                annotation="annovar"
+                annotation = "annovar"
             elif vep_field in vcf_handler.infos.keys():
-                annotation="vep"
+                annotation = "vep"
 
         valid = True
         msg = "OK!"
         return valid, msg, annotation
 
-
     valid, msg_validate, annotation = validate_vcf(vcf_file)
 
-    context = json.dumps({'annotation' : annotation,
+    context = json.dumps({'annotation': annotation,
                           'msg_validate': msg_validate,
                           'valid': valid})
     return HttpResponse(context)
 
-
-#
-# submit_vcf: Parse VCF file and store into projects DB
-#
 
 def submit_vcf(request):
     import sqlite3
@@ -187,7 +172,9 @@ def submit_vcf(request):
         table_type = ""
 
         Drop_query = "DROP TABLE IF EXISTS " + project_name + ";"
-        DefaultStatement = "CREATE TABLE " + project_name + "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
+        DefaultStatement = "CREATE TABLE " + project_name + \
+                           "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, RS_ID TEXT, " \
+                           "REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
         CSQ_Statement = ""
         CSQ_Statement_Flag = 0
         INFO_Statement = ""
@@ -204,7 +191,6 @@ def submit_vcf(request):
             else:
                 table_type = "TEXT"
             # print vcf_handler.infos[id][0]
-
             if vcf_handler.infos[id][0][0].isdigit():
                 table_name = '"u' + vcf_handler.infos[id][0] + '"'
             elif vcf_handler.infos[id][0].startswith("GERP"):
@@ -217,11 +203,10 @@ def submit_vcf(request):
                     # print field
                     if field in TableIndex:
                         # print TableIndex
-                        print "Adding _CSQ to " + table_name + " because was found DUPLICATED!"
+                        print("Adding _CSQ to " + table_name + " because was found DUPLICATED!")
                         CSQ_Statement += '"' + field + '_CSQ" ' + "TEXT" + ", "
                     else:
                         CSQ_Statement += '"' + field + '" ' + "TEXT" + ", "
-
             else:
                 table_name = vcf_handler.infos[id][0]
 
@@ -247,28 +232,21 @@ def submit_vcf(request):
         # print query
         # print TableIndex
         # end debug
-
         conn = sqlite3.connect(database)
         c = conn.cursor()
         c.execute(Drop_query)
         c.execute(query)
         conn.commit()
         c.close()
-
         return 0
 
     def generateTableFromVCF_annovar(vcf_handler, database, project_name):
-        import vcf
-        import collections
         import sqlite3
-
-        table_name = ""
-        table_type = ""
-
         Drop_query = "DROP TABLE IF EXISTS " + project_name + ";"
-        DefaultStatement = "CREATE TABLE " + project_name + "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
+        DefaultStatement = "CREATE TABLE " + project_name + \
+                           "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
+                           "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
         TableIndex = []
-
         for id in vcf_handler.infos.keys():
             if vcf_handler.infos[id][2] == "String":
                 table_type = "TEXT"
@@ -295,27 +273,22 @@ def submit_vcf(request):
         query = DefaultStatement + SampleStatement[:-2] + ");"
 
         # Create DB in sqlite3
-
         conn = sqlite3.connect(database)
         c = conn.cursor()
         c.execute(Drop_query)
-        #return(query)
         c.execute(query)
         conn.commit()
         c.close()
-
         return 0
 
     def generateTableFromVCF_other(vcf_handler, database, project_name):
         import sqlite3
 
-        table_name = ""
-        table_type = ""
-
         Drop_query = "DROP TABLE IF EXISTS " + project_name + ";"
-        DefaultStatement = "CREATE TABLE " + project_name + "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
+        DefaultStatement = "CREATE TABLE " + project_name + \
+                           "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
+                           "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
         TableIndex = []
-
         for id in vcf_handler.infos.keys():
             if vcf_handler.infos[id][2] == "String":
                 table_type = "TEXT"
@@ -340,17 +313,13 @@ def submit_vcf(request):
             SampleStatement += '"' + vcf_handler.samples[sample] + '"' + " TEXT, "
             TableIndex.append(vcf_handler.samples[sample])
         query = DefaultStatement + SampleStatement[:-2] + ");"
-
         # Create DB in sqlite3
-
         conn = sqlite3.connect(database)
         c = conn.cursor()
         c.execute(Drop_query)
-        #return(query)
         c.execute(query)
         conn.commit()
         c.close()
-
         return 0
 
     def populateTablesSQLite3_executemany(vcf_handler, database, annotation, project_name):
@@ -360,43 +329,36 @@ def submit_vcf(request):
         from numpy import mean
 
         autoincremental_id = 1
-        query = ""
-        data=[]
-        params=""
+        data = []
         start_time = time.time()
 
         record_time = []
 
         for record in vcf_handler:
             # grep the start reading record
-            start_record=time.time()
-
-            DefaultStatement = ""
-            coordinates = []
+            start_record = time.time()
             info = []
             gt = []
             null = string.maketrans('', '')
 
-            ### Base information generation (CHR, POS, ALT ...) and ID
-            ## Get FILTER status
-            ## [] = PASS
-            if record.FILTER==[]:
+            # Base information generation (CHR, POS, ALT ...) and ID
+            # Get FILTER status
+            # [] = PASS
+            if record.FILTER == []:
                 filter_string = "PASS"
             else:
                 filter_string = string.translate(str(record.FILTER), null, "[']")
             coordinates = [autoincremental_id, record.CHROM, str(record.POS), str(record.ID), record.REF,
                            str(record.ALT[0]), str(record.QUAL), filter_string]
-            # print base
-            # coordinates=",".join(baseStr)
 
-            ### INFO generation
+            # INFO generation
             for i in vcf_handler.infos.keys():
                 try:
                     res = string.translate(str(record.INFO[i]), null, "[']")
                 except KeyError:
                     res = "None"
                 # print i,res
-                if (annotation == "annovar" or annotation == "other"):
+                if annotation == "annovar" or annotation == "other":
                     info.append(res)
                 else:
                     CSQ = ""
@@ -407,21 +369,21 @@ def submit_vcf(request):
                     else:
                         info.append(res)
 
-            ### Genotype generation
+            # Genotype generation
             for i in range(len(record.samples)):
                 gt.append(str(record.samples[i].gt_type))
 
             autoincremental_id += 1
             DefaultStatement = coordinates + info + gt
             data.append(tuple(DefaultStatement))
-            end_record=time.time()
-            record_time.append(end_record-start_record)
+            end_record = time.time()
+            record_time.append(end_record - start_record)
 
         # Vcf storing time
-        vcf_store_time = (time.time() - start_time)
-        record_store_time=mean(record_time)*1000
+        vcf_store_time = time.time() - start_time
+        record_store_time = mean(record_time) * 1000
 
-        params = l=len(data[0])
+        l = len(data[0])
         params = ("?," * l)[:-1]
         query = "INSERT OR IGNORE INTO " + project_name + " VALUES(" + params + ");"
 
@@ -445,29 +407,30 @@ def submit_vcf(request):
     assembly_version = request.POST['assembly_version']
 
     # Preprocessing
-    ## Get the absolute path
+    # Get the absolute path
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     models = os.path.join(base_dir, app_label, "models.py")
     vcf_dir = os.path.join(base_dir, "data/VCFs")
     filename = os.path.join(vcf_dir, vcf_name)
     database = os.path.join(base_dir, "data/db/projects_DB.sqlite3")
-    dbinfo = os.path.join(base_dir, "data/db/myVCF_DB.sqlite3")
     manage_script = os.path.join(base_dir, "manage.py")
     python_bin = sys.executable
+
     # Read the VCF
     vcf_handler = vcf.Reader(open(filename, 'r'))
 
     # Get the sample list (IT'S A PYTHON LIST)
     samples = vcf_handler.samples
+
     # get samples number
     samples_len = len(vcf_handler.samples)
 
     # Create DB and populate it
-    ### SQLITE version
-    ### Generate the sqlite3 file and the "columns" from VCF header
-    ### IMPORTANT IN MANUAL WIKI TO DEFINE MANDATORY FIELDS!!!!
-    ### Annovar = exonicfunc_ensgene, gene_ensgene, func_ensgene, gene_refgene
-    ### VEP = consequence
+    # SQLITE version
+    # Generate the sqlite3 file and the "columns" from VCF header
+    # IMPORTANT IN MANUAL WIKI TO DEFINE MANDATORY FIELDS!!!!
+    # Annovar = exonicfunc_ensgene, gene_ensgene, func_ensgene, gene_refgene
+    # VEP = consequence
     if sw_annotation == "annovar":
         generateTableFromVCF_annovar(vcf_handler, database, project_name)
         default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_refgene', 'ac', 'af', 'exonicfunc_ensgene']
@@ -480,33 +443,34 @@ def submit_vcf(request):
         generateTableFromVCF_VEP(vcf_handler, database, project_name)
         default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'ac', 'af']
         mutation_col = 'chrom'
-    #########
-    ## Single execution for every set of values
-    #loading_time = populateTablesSQLite3(vcf_handler, database, sw_annotation, project_name)
 
-    ## Multiple execution
-    loading_time, vcf_store_time, record_store_time, n_record = populateTablesSQLite3_executemany(vcf_handler, database, sw_annotation, project_name)
-    n_record_rate = n_record/vcf_store_time
+    # Single execution for every set of values
+    # loading_time = populateTablesSQLite3(vcf_handler, database, sw_annotation, project_name)
+
+    # Multiple execution
+    loading_time, vcf_store_time, record_store_time, n_record = populateTablesSQLite3_executemany(vcf_handler, database,
+                                                                                                  sw_annotation,
+                                                                                                  project_name)
+    n_record_rate = n_record / vcf_store_time
     # Add DB in myVCF_DB--> dbinfo
 
-    db = DbInfo.objects.create(project_name = project_name,
-                               gene_annotation = annotation_version,
-                               sw_annotation = sw_annotation,
-                               samples = samples,
-                               samples_len = samples_len,
-                               default_col = default_col,
-                               mutation_col = mutation_col,
-                               assembly_version = assembly_version
+    db = DbInfo.objects.create(project_name=project_name,
+                               gene_annotation=annotation_version,
+                               sw_annotation=sw_annotation,
+                               samples=samples,
+                               samples_len=samples_len,
+                               default_col=default_col,
+                               mutation_col=mutation_col,
+                               assembly_version=assembly_version
                                )
     db.save()
 
     # Output the context
-
     sanity_check = "OK"
     context = {'sanity_check': sanity_check,
                'vcf_name': vcf_name,
                'annotation_version': annotation_version,
-               'assembly_version' : assembly_version,
+               'assembly_version': assembly_version,
                'sw_annotation': sw_annotation,
                'project_name': project_name,
                'loading_time': loading_time,

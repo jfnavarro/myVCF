@@ -1,16 +1,14 @@
-__author__ = 'pietrelli'
-
 from django import template
-from django.conf import settings
 import re
 import ast
 
 register = template.Library()
 numeric_test = re.compile("^\d+$")
 
-#@register.filter
-def get_range( value ):
-  """
+
+# @register.filter
+def get_range(value):
+    """
     Filter - returns a list containing range made from given value
     Usage (in template):
 
@@ -27,10 +25,11 @@ def get_range( value ):
 
     Instead of 3 one may use the variable set in the views
   """
-  return range( value )
+    return range(value)
+
 
 @register.filter
-def getattr (obj, args):
+def getattr(obj, args):
     """ Try to get an attribute from an object.
 
     Example: {% if block|getattr:"editable,True" %}
@@ -47,12 +46,13 @@ def getattr (obj, args):
     try:
         return obj.__getattribute__(attribute)
     except AttributeError:
-         return  obj.__dict__.get(attribute, default)
+        return obj.__dict__.get(attribute, default)
     except:
         return default
 
+
 @register.filter
-def get_sample_list (obj, args):
+def get_sample_list(obj, args):
     """ Try to get an attribute from an object.
 
     Example: {% if block|getattr:"editable,True" %}
@@ -62,7 +62,7 @@ def get_sample_list (obj, args):
     {% if block|getattr:"editable," %}
     """
     args = args.split(',')
-    default=''
+    default = ''
     if len(args) == 1:
         group = [args[0]]
     try:
@@ -70,21 +70,23 @@ def get_sample_list (obj, args):
     except:
         return default
 
+
 @register.filter
 def get_mutation_genotype_by_group(obj, group):
     # Obj single VCF obj
     samples = obj.sample_list(group)
-    genotype=0
-    l=[]
+    genotype = 0
+    l = []
     freq = 0
     for sample in samples:
         try:
             genotype += (int(getattr(obj, sample)))
         except ValueError:
             genotype += 0
-        #l.append((int(getattr(obj, sample))))
-    freq = round(genotype/float(len(samples)),2)
+        # l.append((int(getattr(obj, sample))))
+    freq = round(genotype / float(len(samples)), 2)
     return genotype
+
 
 @register.filter
 def get_mutation_by_type(obj, args):
@@ -92,17 +94,17 @@ def get_mutation_by_type(obj, args):
     args = args.split(',')
     type = args[0]
     group = args[1]
-    mutations=0
+    mutations = 0
     for mutation in obj:
         # RefGene
         if mutation.exonicfunc_refgene.startswith(type):
             mutations += mutation.get_mutation_genotype_by_group(group)
         # ENSGENE
-        #if mutation.exonicfunc_ensgene.startswith(type):
+        # if mutation.exonicfunc_ensgene.startswith(type):
         #    mutations += mutation.get_mutation_genotype_by_group(group)
 
-
     return mutations
+
 
 @register.filter
 def list_to_text(obj):
