@@ -3,15 +3,15 @@
 # myVCF: web-based tool for the visualization and analysis of VCF files
 
 This tool enables the storage, loading, querying and visulization of 
-VCF files. The tool implments a simple Django interface with a mysql3
+VCF files. The tool implements a simple django interface with a sqlite3
 database and secure access (login). VCF files are loaded into the 
-database and they can be openned and browse once the user has logged
-in to the application. The tool can be deployed locally and in a dedicated
+database and they can be opened and browsed once the user has logged
+in to the application. The tool can be deployed locally or in a dedicated
 server (See deployment). 
 
 ### Acknoledgements
 
-This tool is a cutom version of the code present in [http://github.com/apietrelli/myVCF/](http://github.com/apietrelli/myVCF/)
+This tool is a custom version of the code present in [http://github.com/apietrelli/myVCF/](http://github.com/apietrelli/myVCF/)
 
 ### Deployment
 
