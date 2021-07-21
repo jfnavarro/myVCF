@@ -1,0 +1,62 @@
+<html>
+<head>
+    <title>MyVCF - {% block title %}Home{% endblock %}</title>
+
+    {% load static %}
+    {% block jquery_loading %}
+        <script type="text/javascript" src="{% static 'vcfdb/js/jquery-1.11.3.js' %}"></script>
+    {% endblock %}
+
+    {# Load bootbox for modal windows #}
+    <script type="text/javascript" src="{% static 'vcfdb/js/bootbox.min.js' %}"></script>
+
+    {% block bootstrap_loading %}
+        {% load bootstrap3 %}
+        {% bootstrap_javascript %}
+        {% bootstrap_css %}
+    {% endblock %}
+
+    <link rel="stylesheet" type="text/css" href="{% static 'vcfdb/css/jumbotron-narrow.css' %}"/>
+</head>
+<body>
+
+<div class="container">
+    <div class="header clearfix">
+        <nav>
+            <ul class="nav nav-pills pull-right">
+                <li role="presentation"><a href="/">Home</a></li>
+            </ul>
+        </nav>
+        <h3 class="text-muted">myVCF</h3>
+
+    </div>
+    <div class="jumbotron">
+        <h1>MyVCF Homepage</h1>
+        <p class="lead">web-based tool for browsing VCF files</p>
+    </div>
+
+    {% block body %}
+        <div class="login">
+            <div class="form">
+                <form class="jumbotron", method="POST", action="{% url 'login' %}">
+                    {% csrf_token %}
+                    <label for="username">User name:</label>
+                    <input type="text" name="username" value="" id="username">
+                    <label for="password">Password:</label>
+                    <input type="password" name="password" value="" id="password">
+                    <input type="submit" value="login" />
+                    <input type="hidden" name="next" value="{{ next|escape }}" />
+                </form>
+            </div>
+        </div>
+    {% endblock %}
+
+    <footer>
+        <div class="nav navbar-default navbar-fixed-bottom">
+            <p class="navbar-text">Created by Alessandro Pietrelli and modified by Jose Fernandez Navarro (BioLizard)</p>
+        </div>
+    </footer>
+
+</div>
+</body>
+</html>

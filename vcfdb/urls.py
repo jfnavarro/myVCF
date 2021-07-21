@@ -2,13 +2,12 @@ from django.conf.urls import url
 from django.contrib.auth import views as auth_views
 from vcfdb import views as myapp_views
 
-app_name = 'myvcf'
+app_name = 'vcfdb'
 
 cache = {}
 urlpatterns = [
     url(r'^(?P<project_name>\w+)/$', myapp_views.project_homepage, name='index'),
     url(r'^(?P<project_name>\w+)/search/$', myapp_views.search, name='search'),
-    #url(r'^(?P<project_name>\w+)/login/$', auth_views.LoginView.as_view(), name='login'),
     url(r'^(?P<project_name>\w+)/not_found/(?P<q>\w+)$', myapp_views.not_found, name='not_found'),
     url(r'^(?P<project_name>\w+)/gene/(?P<gene_ensgene>ENSG[0-9]+)/$', myapp_views.display_gene_results, name='gene_list'),
     url(r'^(?P<project_name>\w+)/gene/(?P<gene_ensgene>ENSG[0-9]+)/plink_gene/$', myapp_views.plink_gene, name='plink_g'),
@@ -40,20 +39,6 @@ urlpatterns = [
     url(r'^(?P<project_name>\w+)/summary_statistics/get_biotype_variations/$', myapp_views.get_biotype_variations, {'cache': cache} ),
     url(r'^(?P<project_name>\w+)/summary_statistics/get_chr_variations/$', myapp_views.get_chr_variations, {'cache': cache} ),
     url(r'^(?P<project_name>\w+)/summary_statistics/get_top_genes/$', myapp_views.get_top_genes, {'cache': cache} ),
-    url(r'^other/(?P<project_name>\w+)/$', myapp_views.project_homepage, name='index'),
-    url(r'^other/(?P<project_name>\w+)/search/$', myapp_views.search, name='search'),
-    url(r'^other/(?P<project_name>\w+)/not_found/(?P<q>\w+)$', myapp_views.not_found, name='not_found'),
-    url(r'^other/(?P<project_name>\w+)/region/(?P<region>[A-z0-9]+-[0-9]+-[0-9]+)/$',
-        myapp_views.display_region_results, name='region'),
-    url(r'^other/(?P<project_name>\w+)/variant/(?P<variant>[A-z0-9]+-[0-9]+-[0-9]+-[Aa,Tt,Gg,Cc]+-[Aa,Tt,Gg,Cc]+)/$',
-        myapp_views.display_variant_results, name='variant'),
-    url(r'^other/(?P<project_name>\w+)/settings/$', myapp_views.settings, name='settings'),
-    url(r'^other/(?P<project_name>\w+)/settings/get_col_list/$', myapp_views.get_col_list, name='get_col_list'),
-    url(r'^other/(?P<project_name>\w+)/settings/save_preferences/$', myapp_views.save_preferences, name='save_preferences'),
-    url(r'^other/(?P<project_name>\w+)/summary_statistics/$', myapp_views.summary_statistics, name='summary_statistics'),
-    url(r'^other/(?P<project_name>\w+)/summary_statistics/get_qual_vcf/$', myapp_views.get_qual_vcf, {'cache': cache}),
-    url(r'^other/(?P<project_name>\w+)/summary_statistics/get_mean_variations/$', myapp_views.get_mean_variations, {'cache': cache}),
-    url(r'^other/(?P<project_name>\w+)/summary_statistics/get_chr_variations/$', myapp_views.get_chr_variations, {'cache': cache})
 ]
 
 handler404 = myapp_views.error404

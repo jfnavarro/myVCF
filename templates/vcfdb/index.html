@@ -14,7 +14,6 @@
                 {% else %}
                 <li role="presentation"><a href="/vcfdb/other/{{ project_name }}/">Home</a></li>
                 {% endif %}
-                <li role="presentation"><a href="mailto:pietrelli@ingm.org?subject=[myVCF] Issue">Contact Developer</a></li>
                 <li role="presentation"><a href="/">myVCF Page</a></li>
             </ul>
         </nav>
@@ -25,7 +24,7 @@
 
         <h1>- {{ project_name }} -</h1>
         <h2>VCF Browser</h2>
-        <p class="lead">Web application for delving into {{ project_name }} project mutations.</p>
+        <p class="lead">Web application for exploring {{ project_name }} mutations.</p>
         <br>
         <div class="row">
             <form method="GET" action = "search/">
@@ -92,10 +91,6 @@
                 <i class="glyphicon glyphicon-cog"></i> Summary statistics
             </a>
             <hr>
-            <p>
-                For further information, please see the manual available by clicking on
-                <a href="http://myvcf.readthedocs.io">this link</a>
-            </p>
         </div>
         <div class="col-md-4">
             <div class="page-header">

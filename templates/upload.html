@@ -11,6 +11,7 @@
     {% bootstrap_javascript %}
     {% bootstrap_css %}
     <link rel="stylesheet" type="text/css" href="{% static 'vcfdb/css/jumbotron-narrow.css' %}">
+
     {% block extra_head_content %}
     {# Bootstrap Validator Form #}
     <script type="text/javascript" src="{% static 'vcfdb/js/bootstrapValidator.min.js' %}"></script>
@@ -24,163 +25,158 @@
     </style>
 
     <script>
-$(document).ready(function() {
-// Populate the select with the file listing of data/VCFs
-    $.ajax({
-        url : "select_vcf/", // the endpoint
-        type : "POST", // http method
-        data : {'csrfmiddlewaretoken': '{{ csrf_token }}',
-                'static_path' : '{% static "VCFs/" %}'}, // data sent with the post request
+        $(document).ready(function() {
+            // Populate the select with the file listing of data/VCFs
+            $.ajax({
+                url : "select_vcf/", // the endpoint
+                type : "POST", // http method
+                data : {'csrfmiddlewaretoken': '{{ csrf_token }}',
+                        'static_path' : '{% static "VCFs/" %}'}, // data sent with the post request
 
-        // handle a successful response
-        success : function(obj) {
-            $("#vcf_name option").remove();
-            var res = JSON.parse(obj)
-            //var list_html ="<option disabled selected value=0>Select VCF file from VCFs dir...</option>"
-            var list_html = "<optgroup label='VCF files'>"
-            //console.log(res.files)
-            for (file in res.files) {
-                list_html += "<option value='"+res.files[file]+"'>"+res.files[file]+"</option>";
-                //<li onclick=$('#upload_file_info').html('"+res.files[file]+"');><a>"+res.files[file]+"</a></li>";
-            }
-            $('#vcf_name').append(list_html)
-            //console.log(list_html); // another sanity check
-            console.log("success"); // another sanity check
+                // handle a successful response
+                success : function(obj) {
+                    $("#vcf_name option").remove();
+                    var res = JSON.parse(obj)
+                    var list_html = "<optgroup label='VCF files'>"
+                    //console.log(res.files)
+                    for (file in res.files) {
+                        list_html += "<option value='"+res.files[file]+"'>"+res.files[file]+"</option>";
+                    }
+                    $('#vcf_name').append(list_html)
+                    //console.log(list_html); // another sanity check
+                    console.log("success"); // another sanity check
 
-        },
+                },
 
-        // handle a non-successful response
-        error : function(xhr,errmsg,err) {
-            console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
-        }
-    });
-})
+                // handle a non-successful response
+                error : function(xhr,errmsg,err) {
+                    console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
+                }
+            });
+        })
     </script>
+
     <script>
-$(document).ready(function() {
-    $("#setupNewProject")
-    // On error in vcf_name, get the message from msg_validate object
-    .on('error.field.bv', function(e, data) {
-            if (data.field === 'vcf_name' && data.validator === 'remote') {
-                var msg = data.result.msg_validate;
-                // console.log("Check");
-                // Hide valid message if any
-                $("#validMsg_vcf_name").hide();
-                $("#warnMsg_vcf_name").hide();
-                $("#sw_annotation").val("None");
-                // Update the message
-                msg
-                    ? data.bv.updateMessage('vcf_name', 'remote', msg)
-                    : data.bv.updateMessage('vcf_name', 'remote', 'The VCF is not valid');
-            }
-    })
-
-    .on('success.field.bv', function(e, data) {
-            if (data.bv.getInvalidFields().length > 0) {    // There is invalid field
-                data.bv.disableSubmitButtons(true);
-            };
-            var validator = data.validator,
-                field  = data.field,   // Get the field name
-                $field = data.element
-
-            if (field === 'vcf_name' && validator === 'remote') {
-                var msg = data.result.msg_validate;
-                var annotation = data.result.annotation;
-                $("#sw_annotation").val(annotation);
-                $("#warnMsg_vcf_name").hide();
-                // console.log("Check");
-                // Show a valid message
-                if (annotation != "other"){
-                    $("#validMsg_vcf_name").html("<p>The VCF is good! <br> Annotation system: "+ annotation + "</p>");
-                    var radios_assembly = document.getElementsByName("assembly_version");
-                    // Enable assembly fields
-                    for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
-                        radios_assembly[i].disabled = false;
+        $(document).ready(function() {
+            $("#setupNewProject")
+            // On error in vcf_name, get the message from msg_validate object
+            .on('error.field.bv', function(e, data) {
+                    if (data.field === 'vcf_name' && data.validator === 'remote') {
+                        var msg = data.result.msg_validate;
+                        // console.log("Check");
+                        // Hide valid message if any
+                        $("#validMsg_vcf_name").hide();
+                        $("#warnMsg_vcf_name").hide();
+                        $("#sw_annotation").val("None");
+                        // Update the message
+                        msg
+                            ? data.bv.updateMessage('vcf_name', 'remote', msg)
+                            : data.bv.updateMessage('vcf_name', 'remote', 'The VCF is not valid');
                     }
-                    // Enable transcript annotation fields
-                    var radios_tx = document.getElementsByName("annotation_version");
-                    for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
-                        radios_tx[i].disabled = false;
+            })
+            // On success
+            .on('success.field.bv', function(e, data) {
+                    // There is invalid field
+                    if (data.bv.getInvalidFields().length > 0) { 
+                        data.bv.disableSubmitButtons(true);
+                    };
+                    var validator = data.validator,
+                        field  = data.field,   // Get the field name
+                        $field = data.element
+
+                    if (field === 'vcf_name' && validator === 'remote') {
+                        var msg = data.result.msg_validate;
+                        var annotation = data.result.annotation;
+                        $("#sw_annotation").val(annotation);
+                        $("#warnMsg_vcf_name").hide();
+                        // console.log("Check");
+                        // Show a valid message
+                        if (annotation != "other"){
+                            $("#validMsg_vcf_name").html("<p>The VCF is good! <br> Annotation system: "+ annotation + "</p>");
+                            var radios_assembly = document.getElementsByName("assembly_version");
+                            // Enable assembly fields
+                            for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
+                                radios_assembly[i].disabled = false;
+                            }
+                            // Enable transcript annotation fields
+                            var radios_tx = document.getElementsByName("annotation_version");
+                            for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
+                                radios_tx[i].disabled = false;
+                            }
+                        } else {
+                            $("#validMsg_vcf_name").html("<p>The VCF is good!<br> Annotation system: "+ annotation + "</p>");
+                            $("#warnMsg_vcf_name").show();
+                            $("#warnMsg_vcf_name").html("<p>The VCF does not contain any annotation or is a non-human reference</p>");
+                            var radios_assembly = document.getElementsByName("assembly_version");
+
+                            // Disable assembly fields
+                            for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
+                                radios_assembly[i].disabled = true;
+                            }
+                            radios_assembly[radios_assembly.length-1].disabled = false;
+                            radios_assembly[radios_assembly.length-1].checked = true;
+
+                            // Disable transcript annotation fields
+                            var radios_tx = document.getElementsByName("annotation_version");
+                            for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
+                                radios_tx[i].disabled = true;
+                            }
+                            radios_tx[radios_tx.length-1].disabled = false;
+                            radios_tx[radios_tx.length-1].checked = true;
+                        }
+                        $("#validMsg_vcf_name").show();
                     }
-                    //radios_tx[2].disabled = true
-                    //radios_assembly[2].disabled = true
+            })
+            .bootstrapValidator({
+                excluded: ':disabled',
+                feedbackIcons: {
+                    valid: 'glyphicon glyphicon-ok',
+                    invalid: 'glyphicon glyphicon-remove',
+                    validating: 'glyphicon glyphicon-refresh'
+                },
+                fields: {
+                    project_name: {
+                        validators: {
+                            remote: {
+                                message: 'The project name is not available',
+                                url: "check_project_name/",
+                                type: "POST",
+                                data: {'csrfmiddlewaretoken': '{{ csrf_token }}'}
+                            },
+                            regexp: {
+                                regexp: /^[a-zA-Z0-9]+$/,
+                                message: 'The Project name can only consist of alphabetical, number'
+                            },
+                            notEmpty: {
+                                message: 'The Project name is required and cannot be empty'
+                            },
+                            stringLength: {
+                                min: 3,
+                                message: 'Your name should be longer than three characters'
+                            }
+                        }
+                    },
+                    vcf_name: {
+                        validators: {
+                            notEmpty: {
+                                message: 'The VCF file is required and cannot be empty'
+                            },
+                            remote: {
+                                url : 'preprocessing_vcf/', // the endpoint
+                                type : "POST", // http method
+                                data : {'csrfmiddlewaretoken': '{{ csrf_token }}'},
+                                message: 'The VCF is not suitable for loading'
+                            }
+                        } /* <&#45;&#45; removed comma */
+                    } /* added closing brace */
                 }
-                else{
-                    $("#validMsg_vcf_name").html("<p>The VCF is good!<br> Annotation system: "+ annotation + "</p>");
-                    $("#warnMsg_vcf_name").show();
-                    $("#warnMsg_vcf_name").html("<p>The VCF does not contain any annotation or is a non-human reference</p>");
-                    var radios_assembly = document.getElementsByName("assembly_version");
-                    // Disable assembly fields
-                    for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
-                        radios_assembly[i].disabled = true;
-                    }
-                    radios_assembly[radios_assembly.length-1].disabled = false;
-                    radios_assembly[radios_assembly.length-1].checked = true;
-
-                    // Disable transcript annotation fields
-                    var radios_tx = document.getElementsByName("annotation_version");
-                    for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
-                        radios_tx[i].disabled = true;
-                    }
-                    radios_tx[radios_tx.length-1].disabled = false;
-                    radios_tx[radios_tx.length-1].checked = true;
-
-                }
-            $("#validMsg_vcf_name").show();
-            }
-    })
-    .bootstrapValidator({
-        excluded: ':disabled',
-        feedbackIcons: {
-            valid: 'glyphicon glyphicon-ok',
-            invalid: 'glyphicon glyphicon-remove',
-            validating: 'glyphicon glyphicon-refresh'
-        },
-        fields: {
-            project_name: {
-                validators: {
-                    remote: {
-                        message: 'The project name is not available',
-                        url: "check_project_name/",
-                        type: "POST",
-                        data: {'csrfmiddlewaretoken': '{{ csrf_token }}'}
-                    },
-                    regexp: {
-                        regexp: /^[a-zA-Z0-9]+$/,
-                        message: 'The Project name can only consist of alphabetical, number'
-                    },
-                    notEmpty: {
-                        message: 'The Project name is required and cannot be empty'
-                    },
-                    stringLength: {
-                        min: 3,
-                        message: 'Your name should be longer than three characters'
-                    }
-                }
-            },
-            vcf_name: {
-                validators: {
-                    notEmpty: {
-                        message: 'The VCF file is required and cannot be empty'
-                    },
-                    remote: {
-                        url : 'preprocessing_vcf/', // the endpoint
-                        type : "POST", // http method
-                        data : {'csrfmiddlewaretoken': '{{ csrf_token }}'},
-                        message: 'The VCF is not suitable for loading'
-                    }
-                } /* <&#45;&#45; removed comma */
-            } /* added closing brace */
-        }
-    })
-    .on('success.form.bv', function(e) {
-        var btn = $('#upload_button[data-loading-text]');
-        btn.button('loading');
-        waitingDialog.show('Saving VCF...', {progressType: 'success'})
-    });
-});
-
-
+            })
+            .on('success.form.bv', function(e) {
+                var btn = $('#upload_button[data-loading-text]');
+                btn.button('loading');
+                waitingDialog.show('Saving VCF...', {progressType: 'success'})
+            });
+        });
 
     </script>
 
@@ -198,9 +194,7 @@ $(document).ready(function() {
     <div class="header clearfix">
         <nav>
             <ul class="nav nav-pills pull-right">
-                <li role="presentation"><a href="#">About</a></li>
-                <li role="presentation"><a href="mailto:pietrelli@ingm.org?subject=[myVCF] Issue">Contact Developer</a></li>
-                <li role="presentation"><a href="/">myVCF Page</a></li>
+                <li role="presentation"><a href="/">Home</a></li>
             </ul>
         </nav>
         <h3 class="text-muted">myVCF</h3>
@@ -235,7 +229,6 @@ $(document).ready(function() {
                 </div>
             </div>
 
-
             <div class="center-block form-group row">
                 <label class="center-block col-md-3 h5"><strong>Annotation software</strong></label>
                 <div class="col-md-7 center-block">
@@ -260,12 +253,6 @@ $(document).ready(function() {
                             hg38
                         </label>
                     </div>
-                    <div class="radio">
-                        <label>
-                            <input type="radio" name="assembly_version" id="assVersion_gridRadios3" value="other">
-                            Non Human Reference
-                        </label>
-                    </div>
                 </div>
             </div>
             <!--Transcript reference-->
@@ -286,14 +273,8 @@ $(document).ready(function() {
                     </div>
                     <div class="radio">
                         <label>
-                            <input type="radio" name="annotation_version" id="ensAnnotation_gridRadios3" value="84">
-                            RefSeq
-                        </label>
-                    </div>
-                    <div class="radio">
-                        <label>
-                            <input type="radio" name="annotation_version" id="ensAnnotation_gridRadios4" value="84">
-                            Other
+                            <input type="radio" name="annotation_version" id="ensAnnotation_gridRadios3" value="104">
+                            ENSEMBL 104
                         </label>
                     </div>
                 </div>
@@ -318,68 +299,69 @@ $(document).ready(function() {
 {% endblock %}
 </body>
 </html>
+
 {% block js %}
 <script>
-var waitingDialog = waitingDialog || (function ($) {
-    'use strict';
+    var waitingDialog = waitingDialog || (function ($) {
+        'use strict';
 
-	// Creating modal dialog's DOM
-	var $dialog = $(
-		'<div class="modal fade" data-backdrop="static" data-keyboard="false" tabindex="-1" role="dialog" aria-hidden="true" style="padding-top:15%; overflow-y:visible;">' +
-		'<div class="modal-dialog modal-m">' +
-		'<div class="modal-content">' +
-			'<div class="modal-header"><h3 style="margin:0;"></h3></div>' +
-			'<div class="modal-body">' +
-				'<div class="progress progress-striped active" style="margin-bottom:0;"><div class="progress-bar" style="width: 100%"></div></div>' +
-			'</div>' +
-		'</div></div></div>');
+        // Creating modal dialog's DOM
+        var $dialog = $(
+            '<div class="modal fade" data-backdrop="static" data-keyboard="false" tabindex="-1" role="dialog" aria-hidden="true" style="padding-top:15%; overflow-y:visible;">' +
+            '<div class="modal-dialog modal-m">' +
+            '<div class="modal-content">' +
+                '<div class="modal-header"><h3 style="margin:0;"></h3></div>' +
+                '<div class="modal-body">' +
+                    '<div class="progress progress-striped active" style="margin-bottom:0;"><div class="progress-bar" style="width: 100%"></div></div>' +
+                '</div>' +
+            '</div></div></div>');
 
-	return {
-		/**
-		 * Opens our dialog
-		 * @param message Custom message
-		 * @param options Custom options:
-		 * 				  options.dialogSize - bootstrap postfix for dialog size, e.g. "sm", "m";
-		 * 				  options.progressType - bootstrap postfix for progress bar type, e.g. "success", "warning".
-		 */
-		show: function (message, options) {
-			// Assigning defaults
-			if (typeof options === 'undefined') {
-				options = {};
-			}
-			if (typeof message === 'undefined') {
-				message = 'Loading';
-			}
-			var settings = $.extend({
-				dialogSize: 'm',
-				progressType: '',
-				onHide: null // This callback runs after the dialog was hidden
-			}, options);
+        return {
+            /**
+             * Opens our dialog
+             * @param message Custom message
+             * @param options Custom options:
+             * 				  options.dialogSize - bootstrap postfix for dialog size, e.g. "sm", "m";
+             * 				  options.progressType - bootstrap postfix for progress bar type, e.g. "success", "warning".
+             */
+            show: function (message, options) {
+                // Assigning defaults
+                if (typeof options === 'undefined') {
+                    options = {};
+                }
+                if (typeof message === 'undefined') {
+                    message = 'Loading';
+                }
+                var settings = $.extend({
+                    dialogSize: 'm',
+                    progressType: '',
+                    onHide: null // This callback runs after the dialog was hidden
+                }, options);
 
-			// Configuring dialog
-			$dialog.find('.modal-dialog').attr('class', 'modal-dialog').addClass('modal-' + settings.dialogSize);
-			$dialog.find('.progress-bar').attr('class', 'progress-bar');
-			if (settings.progressType) {
-				$dialog.find('.progress-bar').addClass('progress-bar-' + settings.progressType);
-			}
-			$dialog.find('h3').text(message);
-			// Adding callbacks
-			if (typeof settings.onHide === 'function') {
-				$dialog.off('hidden.bs.modal').on('hidden.bs.modal', function (e) {
-					settings.onHide.call($dialog);
-				});
-			}
-			// Opening dialog
-			$dialog.modal();
-		},
-		/**
-		 * Closes dialog
-		 */
-		hide: function () {
-			$dialog.modal('hide');
-		}
-	};
+                // Configuring dialog
+                $dialog.find('.modal-dialog').attr('class', 'modal-dialog').addClass('modal-' + settings.dialogSize);
+                $dialog.find('.progress-bar').attr('class', 'progress-bar');
+                if (settings.progressType) {
+                    $dialog.find('.progress-bar').addClass('progress-bar-' + settings.progressType);
+                }
+                $dialog.find('h3').text(message);
 
-})(jQuery);
+                // Adding callbacks
+                if (typeof settings.onHide === 'function') {
+                    $dialog.off('hidden.bs.modal').on('hidden.bs.modal', function (e) {
+                        settings.onHide.call($dialog);
+                    });
+                }
+
+                // Opening dialog
+                $dialog.modal();
+            },
+            // Closes dialog
+            hide: function () {
+                $dialog.modal('hide');
+            }
+        };
+
+    })(jQuery);
 </script>
 {% endblock %}

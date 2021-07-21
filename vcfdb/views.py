@@ -1,6 +1,8 @@
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.apps import apps
+from django.template import RequestContext
+from django.contrib.auth.decorators import login_required
 import ast
 import json
 import re
@@ -47,6 +49,7 @@ def project_homepage(request, project_name):
     return render(request, 'index.html', context)
 
 
+@login_required(login_url="/login")
 def search(request, project_name):
     def is_region(query):
         res = len(re.findall(r"[:-]", query))
@@ -147,6 +150,7 @@ def search(request, project_name):
             return render(request, 'search.html', context)
 
 
+@login_required(login_url="/login")
 def display_gene_results(request, gene_ensgene, project_name):
     type = "gene"
 
@@ -189,7 +193,6 @@ def display_gene_results(request, gene_ensgene, project_name):
     # django converts CAPITAL in small letter
     # 1. from "-" to "-"
     samples = [sample.replace('-', '_') for sample in samples]
-
     n_samples = dbinfo.n_samples()
     model = apps.get_model(app_label=app_label,
                            model_name=project_name)
@@ -225,11 +228,10 @@ def display_gene_results(request, gene_ensgene, project_name):
         return render(request, 'gene_results.html', context)
 
 
+@login_required(login_url="/login")
 def display_region_results(request, region, project_name):
     check = "OK"
     type = "region"
-
-    # return HttpResponse(check)
 
     def check_region_format(region):
         response = True
@@ -270,7 +272,6 @@ def display_region_results(request, region, project_name):
     # django converts CAPITAL in small letter
     # 1. from "-" to "-"
     samples = [sample.replace('-', '_') for sample in samples]
-
     n_samples = dbinfo.n_samples()
     model = apps.get_model(app_label=app_label,
                            model_name=project_name)
@@ -308,6 +309,7 @@ def display_region_results(request, region, project_name):
         return render(request, 'gene_results.html', context)
 
 
+@login_required(login_url="/login")
 def display_variant_results(request, variant, project_name):
     def format_variant(variant):
         v = {}
@@ -708,9 +710,8 @@ def get_insilico_pred(request, variant, project_name):
     return HttpResponse(context)
 
 
-#
 # settings: Get the COL_LIST FROM the DB
-#
+@login_required(login_url="/login")
 def settings(request, project_name):
     msg_validate = "OK"
     groups = Groups.objects.filter(project_name__iexact=project_name)
@@ -723,9 +724,7 @@ def settings(request, project_name):
     return render(request, 'settings.html', context)
 
 
-#
 # get_col_list: Get the COL_LIST FROM the DB
-#
 def get_col_list(request, project_name):
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     sw_annotation = dbinfo.sw_annotation
@@ -763,9 +762,7 @@ def get_col_list(request, project_name):
     return HttpResponse(context)
 
 
-#
 # get_sample_list: Get the Sample_LIST FROM the DB
-#
 def get_sample_list(request, project_name):
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     sw_annotation = dbinfo.sw_annotation
@@ -785,6 +782,7 @@ def get_sample_list(request, project_name):
                           'sample_col': samples,
                           'sanity_check': sanity_check})
     return HttpResponse(context)
+
 
 
 def check_group_name(request, project_name):
@@ -810,7 +808,6 @@ def delete_group(request, project_name):
     Groups.objects.filter(project_name__iexact=project_name).filter(group_name=group_name).delete()
 
     msg_validate = "Group deleted"
-
     context = json.dumps({'project_name': project_name,
                           'msg_validate': msg_validate})
     return HttpResponse(context)
@@ -862,12 +859,8 @@ def save_groups(request, project_name):
                           's': sample_list})
     return HttpResponse(context)
 
-    msg_validate = "OK"
-    context = json.dumps({'project_name': project_name,
-                          'msg_validate': msg_validate})
-    return HttpResponse(context)
 
-
+@login_required(login_url="/login")
 def summary_statistics(request, project_name):
     msg_validate = "OK"
 

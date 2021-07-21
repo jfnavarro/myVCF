@@ -8,11 +8,11 @@
 <link rel="stylesheet" href="//cdn.datatables.net/plug-ins/be7019ee387/integration/bootstrap/3/dataTables.bootstrap.css" />
 
 <script>
-$(document).ready( function() {
-  $("#gene_list").dataTable({
-       "dom" : 'ltpi'
-       } );
-   } );
+    $(document).ready( function() {
+    $("#gene_list").dataTable({
+        "dom" : 'ltpi'
+        } );
+    } );
 </script>
 
 {% endblock %}
@@ -25,7 +25,6 @@ $(document).ready( function() {
         <nav>
             <ul class="nav nav-pills pull-right">
                 <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Home</a></li>
-                <li role="presentation"><a href="mailto:pietrelli@ingm.org?subject=[myVCF] Issue">Contact Developer</a></li>
                 <li role="presentation"><a href="/">myVCF Page</a></li>
             </ul>
         </nav>

@@ -1,15 +1,19 @@
-# Main views for myVCF site
-
-from django.http import HttpResponse
+from typing_extensions import OrderedDict
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.apps import apps
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.template import RequestContext
+
 import json
 import re
 import os
-from subprocess import check_output
-import vcf
 import sys
 
+from subprocess import check_output, CalledProcessError
+
+import vcf
 import sqlite3
 from vcfdb.base_models import DbInfo, Groups
 
@@ -19,6 +23,39 @@ app_label = "vcfdb"
 project_db = "projects"
 
 
+def user_login(request):
+    # If the request is a HTTP POST, try to pull out the relevant information.
+    if request.method == 'POST':
+        # Gather the username and password provided by the user.
+        # This information is obtained from the login form.
+        username = request.POST['username']
+        password = request.POST['password']
+        print("Authenticating {} {}".format(username, password))
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            # Is the account active? It could have been disabled.
+            if user.is_active:
+                # If the account is valid and active, we can log the user in.
+                login(request, user)
+                return HttpResponseRedirect('/')
+            else:
+                return HttpResponse("Your account is disabled.")
+        else:
+            print("Invalid login details: {0}, {1}".format(username, password))
+            return HttpResponse("Invalid login details supplied.")
+    # The request is not a HTTP POST, so display the login form.
+    else:
+        context = {}
+        return render(request, 'login.html', context)
+
+
+@login_required
+def user_logout(request):
+    logout(request)
+    return HttpResponseRedirect('/')
+
+
+@login_required
 def main_page(request):
     db_list = DbInfo.objects.values("project_name",
                                     "gene_annotation",
@@ -30,6 +67,7 @@ def main_page(request):
     return render(request, 'base_site.html', context)
 
 
+@login_required
 def upload_project(request):
     context = {}
     return render(request, 'upload.html', context)
@@ -49,6 +87,7 @@ def check_project_name(request):
 def delete_db(request):
     # AJAX request
     project_name = request.POST['project_name']
+
     # get the model
     model = apps.get_model(app_label=app_label,
                            model_name=project_name)
@@ -75,7 +114,6 @@ def delete_db(request):
     db.delete()
 
     msg_validate = "Project deleted"
-
     context = json.dumps({'project_name': project_name,
                           'msg_validate': msg_validate})
     return HttpResponse(context)
@@ -92,12 +130,11 @@ def select_vcf(request):
 
 
 def preprocessing_vcf(request):
-    # Path doesn't works because it not reads relative path on static
     # path = request.POST['static_path']
+    # TODO get path from STATIC
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     vcf_dir = os.path.join(base_dir, "data/VCFs")
     vcf_name = request.POST['vcf_name']
-
     vcf_file = os.path.join(vcf_dir, vcf_name)
 
     def validate_vcf(vcf_file):
@@ -113,29 +150,27 @@ def preprocessing_vcf(request):
         try:
             vcf_handler = vcf.Reader(open(vcf_file, 'r'))
         except:
-            msg = "Does not seem a VCF file..."
+            msg = "The file does not seem to be a valid VCF file..."
             return valid, msg, annotation
 
         # Check if contains INFO fields
         if vcf_handler.infos.keys() == []:
-            msg = "This VCF does not contain INFO fields..."
-            return valid, msg, annotation
-        # Check if contains at least 1 sample
-        elif len(vcf_handler.samples) == 0:
-            msg = "This VCF does not contain ANY sample genotype..."
+            msg = "The VCF file does not contain INFO fields..."
             return valid, msg, annotation
 
-        # Check if the VCF has been annotatod with supported software:
+        # Check if contains at least 1 sample
+        if len(vcf_handler.samples) == 0:
+            msg = "The VCF file does not contain ANY sample genotype..."
+            return valid, msg, annotation
+
+        # Check if the VCF was annotated with supported software:
         # Annovar = Gene_ensGene field
         # Annovar exonic annotation = ExonicFunc_ensGene
         # VEP = CSQ field
-        elif ((annovar_field or annovar_exonic_field or annovar_genesymbol_field) not in vcf_handler.infos.keys()) \
+        if ((annovar_field or annovar_exonic_field or annovar_genesymbol_field) not in vcf_handler.infos.keys()) \
                 and (vep_field not in vcf_handler.infos.keys()):
-            msg = "This VCF is not annotated with Annovar or VEP software<br>" \
-                  "The system consider this VCF as non-human file" \
-                  "Please follow the manual to make a human VCF suitable for myVCF, if the reference is human!!"
-            valid = True
-            annotation = "other"
+            msg = "This VCF file was not annotated with Annovar nor VEP software<br>" \
+                  "Please follow the manual to use a VCF file compatible with myVCF,"
             return valid, msg, annotation
         else:
             if annovar_field in vcf_handler.infos.keys():
@@ -155,256 +190,93 @@ def preprocessing_vcf(request):
     return HttpResponse(context)
 
 
-def submit_vcf(request):
-    import sqlite3
+def _populateDatabase(vcf_handler, database, project_name, columns_clean):
+    import string
+    import time
+    from numpy import mean
+    from collections import OrderedDict
 
-    def generateTableFromVCF_VEP(vcf_handler, database, project_name):
+    autoincremental_id = 1
+    data = []
+    start_time = time.time()
+    record_time = []
 
-        def readCSQ_header(CSQ_info):
-            if "desc" in CSQ_info._fields:
-                # print CSQ_info.desc
-                CSQ_fields = CSQ_info.desc.split("Format: ")[1].split("|")
-                return CSQ_fields
+    print('Parsing VCF records')
+    max_columns = -1
+    for record in vcf_handler:
+        start_record = time.time()
+        values_dict = OrderedDict.fromkeys(columns_clean)
+
+        # Get FILTER status [] = PASS
+        if record.FILTER == []:
+            filter_string = "PASS"
+        else:
+            filter_string = ''.join(record.FILTER)
+
+        # Get base information generation (CHR, POS, ALT ...) and ID
+        values_dict['ID'] = autoincremental_id
+        values_dict['CHROM'] = record.CHROM,
+        values_dict['POS'] = str(record.POS)
+        values_dict['RS_ID'] = str(record.ID)
+        values_dict['REF'] = record.REF
+        values_dict['ALT'] = str(record.ALT[0])
+        values_dict['QUAL'] = str(record.QUAL)
+        values_dict['FILTER'] = filter_string
+
+        # INFO generation
+        for key, info in record.INFO.items():
+            value = info[0] if type(info) == list else info
+            if key == "CSQ":
+                for x in value.split("|"):
+                    values_dict[]
+                    info_values.append(str(x))
+            elif type(value) == bool:
+                info_values.append(str(int(value)))
             else:
-                return """CSQ format is not well-defined!\nFIELD INFORMATION MISSING"""
+                info_values.append(str(value))
 
-        table_name = ""
-        table_type = ""
+        # Genotype generation
+        gt_values = []
+        for sample in record.samples:
+            gt_values.append(sample['GT'])
 
-        Drop_query = "DROP TABLE IF EXISTS " + project_name + ";"
-        DefaultStatement = "CREATE TABLE " + project_name + \
-                           "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, RS_ID TEXT, " \
-                           "REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
-        CSQ_Statement = ""
-        CSQ_Statement_Flag = 0
-        INFO_Statement = ""
-        TableIndex = []
+        autoincremental_id += 1
+        item = tuple(coordinates + info_values + gt_values)
+        data.append(item)
+        max_columns = max(len(item), max_columns)
+        end_record = time.time()
+        record_time.append(end_record - start_record)
+    print('VCF file parsed')
 
-        # print vcf_handler.infos.keys()
-        for id in vcf_handler.infos.keys():
-            if vcf_handler.infos[id][2] == "String":
-                table_type = "TEXT"
-            elif vcf_handler.infos[id][2] == "Float":
-                table_type = "REAL"
-            elif vcf_handler.infos[id][2] == "Integer":
-                table_type = "INTEGER"
-            else:
-                table_type = "TEXT"
-            # print vcf_handler.infos[id][0]
-            if vcf_handler.infos[id][0][0].isdigit():
-                table_name = '"u' + vcf_handler.infos[id][0] + '"'
-            elif vcf_handler.infos[id][0].startswith("GERP"):
-                table_name = '"GERP_RS"'
-            elif vcf_handler.infos[id][0].startswith("CSQ"):
-                # print "CSQ point"
-                CSQ_Statement_Flag = 1
-                CSQ_fields = readCSQ_header(vcf_handler.infos[id])
-                for field in CSQ_fields:
-                    # print field
-                    if field in TableIndex:
-                        # print TableIndex
-                        print("Adding _CSQ to " + table_name + " because was found DUPLICATED!")
-                        CSQ_Statement += '"' + field + '_CSQ" ' + "TEXT" + ", "
-                    else:
-                        CSQ_Statement += '"' + field + '" ' + "TEXT" + ", "
-            else:
-                table_name = vcf_handler.infos[id][0]
+    # storing time
+    vcf_store_time = time.time() - start_time
+    record_store_time = mean(record_time) * 1000
 
-            if CSQ_Statement_Flag:
-                # print CSQ_Statement
-                INFO_Statement = CSQ_Statement
-                CSQ_Statement_Flag = 0
-            else:
-                INFO_Statement = '"' + table_name + '" ' + table_type + ", "
-
-            # INFO_Statement += table_name + " " + table_type + ", "
-            TableIndex.append(table_name)
-            DefaultStatement = DefaultStatement + INFO_Statement
-
-        # Samples columns
-        SampleStatement = ""
-        for sample in range(len(vcf_handler.samples)):
-            SampleStatement += '"' + vcf_handler.samples[sample] + '"' + " TEXT, "
-            TableIndex.append(vcf_handler.samples[sample])
-        query = DefaultStatement + SampleStatement[:-2] + ");"
-
-        # Debug
-        # print query
-        # print TableIndex
-        # end debug
-        conn = sqlite3.connect(database)
-        c = conn.cursor()
-        c.execute(Drop_query)
-        c.execute(query)
-        conn.commit()
-        c.close()
-        return 0
-
-    def generateTableFromVCF_annovar(vcf_handler, database, project_name):
-        import sqlite3
-        Drop_query = "DROP TABLE IF EXISTS " + project_name + ";"
-        DefaultStatement = "CREATE TABLE " + project_name + \
-                           "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
-                           "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
-        TableIndex = []
-        for id in vcf_handler.infos.keys():
-            if vcf_handler.infos[id][2] == "String":
-                table_type = "TEXT"
-            elif vcf_handler.infos[id][2] == "Float":
-                table_type = "REAL"
-            elif vcf_handler.infos[id][2] == "Integer":
-                table_type = "INTEGER"
-            else:
-                table_type = "TEXT"
-            # print vcf_handler.infos[id][0]
-            if vcf_handler.infos[id][0][0].isdigit():
-                table_name = '"u' + vcf_handler.infos[id][0] + '"'
-            elif vcf_handler.infos[id][0].startswith("GERP"):
-                table_name = '"GERP_RS"'
-            else:
-                table_name = '"' + vcf_handler.infos[id][0] + '"'
-            DefaultStatement = DefaultStatement + table_name + " " + table_type + ", "
-            TableIndex.append(table_name)
-        # Samples columns
-        SampleStatement = ""
-        for sample in range(len(vcf_handler.samples)):
-            SampleStatement += '"' + vcf_handler.samples[sample] + '"' + " TEXT, "
-            TableIndex.append(vcf_handler.samples[sample])
-        query = DefaultStatement + SampleStatement[:-2] + ");"
-
-        # Create DB in sqlite3
-        conn = sqlite3.connect(database)
-        c = conn.cursor()
-        c.execute(Drop_query)
-        c.execute(query)
-        conn.commit()
-        c.close()
-        return 0
-
-    def generateTableFromVCF_other(vcf_handler, database, project_name):
-        import sqlite3
-
-        Drop_query = "DROP TABLE IF EXISTS " + project_name + ";"
-        DefaultStatement = "CREATE TABLE " + project_name + \
-                           "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
-                           "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, "
-        TableIndex = []
-        for id in vcf_handler.infos.keys():
-            if vcf_handler.infos[id][2] == "String":
-                table_type = "TEXT"
-            elif vcf_handler.infos[id][2] == "Float":
-                table_type = "REAL"
-            elif vcf_handler.infos[id][2] == "Integer":
-                table_type = "INTEGER"
-            else:
-                table_type = "TEXT"
-            # print vcf_handler.infos[id][0]
-            if vcf_handler.infos[id][0][0].isdigit():
-                table_name = '"u' + vcf_handler.infos[id][0] + '"'
-            elif vcf_handler.infos[id][0].startswith("GERP"):
-                table_name = '"GERP_RS"'
-            else:
-                table_name = '"' + vcf_handler.infos[id][0] + '"'
-            DefaultStatement = DefaultStatement + table_name + " " + table_type + ", "
-            TableIndex.append(table_name)
-        # Samples columns
-        SampleStatement = ""
-        for sample in range(len(vcf_handler.samples)):
-            SampleStatement += '"' + vcf_handler.samples[sample] + '"' + " TEXT, "
-            TableIndex.append(vcf_handler.samples[sample])
-        query = DefaultStatement + SampleStatement[:-2] + ");"
-        # Create DB in sqlite3
-        conn = sqlite3.connect(database)
-        c = conn.cursor()
-        c.execute(Drop_query)
-        c.execute(query)
-        conn.commit()
-        c.close()
-        return 0
-
-    def populateTablesSQLite3_executemany(vcf_handler, database, annotation, project_name):
-        import string
-        import time
-        import sqlite3
-        from numpy import mean
-
-        autoincremental_id = 1
-        data = []
-        start_time = time.time()
-
-        record_time = []
-
-        for record in vcf_handler:
-            # grep the start reading record
-            start_record = time.time()
-            info = []
-            gt = []
-            null = string.maketrans('', '')
-
-            # Base information generation (CHR, POS, ALT ...) and ID
-            # Get FILTER status
-            # [] = PASS
-            if record.FILTER == []:
-                filter_string = "PASS"
-            else:
-                filter_string = string.translate(str(record.FILTER), null, "[']")
-            coordinates = [autoincremental_id, record.CHROM, str(record.POS), str(record.ID), record.REF,
-                           str(record.ALT[0]), str(record.QUAL), filter_string]
-
-            # INFO generation
-            for i in vcf_handler.infos.keys():
-                try:
-                    res = string.translate(str(record.INFO[i]), null, "[']")
-                except KeyError:
-                    res = "None"
-                # print i,res
-                if annotation == "annovar" or annotation == "other":
-                    info.append(res)
-                else:
-                    CSQ = ""
-                    if i == "CSQ":
-                        CSQ = res.split("|")
-                        for CSQ_field in CSQ:
-                            info.append(CSQ_field)
-                    else:
-                        info.append(res)
-
-            # Genotype generation
-            for i in range(len(record.samples)):
-                gt.append(str(record.samples[i].gt_type))
-
-            autoincremental_id += 1
-            DefaultStatement = coordinates + info + gt
-            data.append(tuple(DefaultStatement))
-            end_record = time.time()
-            record_time.append(end_record - start_record)
-
-        # Vcf storing time
-        vcf_store_time = time.time() - start_time
-        record_store_time = mean(record_time) * 1000
-
-        l = len(data[0])
-        params = ("?," * l)[:-1]
-        query = "INSERT OR IGNORE INTO " + project_name + " VALUES(" + params + ");"
-
-        conn = sqlite3.connect(database)
-        c = conn.cursor()
+    params = ("?," * max_columns)[:-1]
+    query = "INSERT OR IGNORE INTO " + project_name + " VALUES(" + params + ");"
+    conn = sqlite3.connect(database)
+    c = conn.cursor()
+    try:
         c.execute("PRAGMA synchronous = OFF")
         c.execute("PRAGMA journal_mode = OFF")
         c.executemany(query, data)
-        conn.commit()
-        conn.close()
-        loading_time = (time.time() - start_time)
-        return loading_time, vcf_store_time, record_store_time, autoincremental_id
-
-    # Main
+    except Exception as e:
+        print("Error uploading VCF data to database {}".format(e))
+    conn.commit()
+    conn.close()
+    loading_time = (time.time() - start_time)
+    return loading_time, vcf_store_time, record_store_time, autoincremental_id
+    
+@login_required
+def submit_vcf(request):
+    import sqlite3
 
     # Reading the input
     sw_annotation = request.POST['sw_annotation']
     annotation_version = request.POST['annotation_version']
     vcf_name = request.POST['vcf_name']
-    project_name = request.POST['project_name']
     assembly_version = request.POST['assembly_version']
+    project_name = request.POST['project_name']
 
     # Preprocessing
     # Get the absolute path
@@ -416,44 +288,91 @@ def submit_vcf(request):
     manage_script = os.path.join(base_dir, "manage.py")
     python_bin = sys.executable
 
+    # Create DB and populate it
+    # Mandatory fields:
+    # Annovar = exonicfunc_ensgene, gene_ensgene, func_ensgene, gene_refgene
+    # VEP = consequence
+    if sw_annotation == "annovar":
+        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_refgene', 'ac', 'af', 'exonicfunc_ensgene']
+        mutation_col = 'exonicfunc_ensgene'
+    elif sw_annotation == "vep":
+        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'symbol', 'ac', 'af', 'consequence']
+        mutation_col = 'consequence'
+    else:
+        return HttpResponse("Invalid annotation when uploading VCF file.")
+
     # Read the VCF
     vcf_handler = vcf.Reader(open(filename, 'r'))
+    print('Opening VCF file {}'.format(filename))
 
-    # Get the sample list (IT'S A PYTHON LIST)
+    # Get the sample list 
     samples = vcf_handler.samples
 
     # get samples number
     samples_len = len(vcf_handler.samples)
+    print('Number of samples {}'.format(samples_len))
 
-    # Create DB and populate it
-    # SQLITE version
-    # Generate the sqlite3 file and the "columns" from VCF header
-    # IMPORTANT IN MANUAL WIKI TO DEFINE MANDATORY FIELDS!!!!
-    # Annovar = exonicfunc_ensgene, gene_ensgene, func_ensgene, gene_refgene
-    # VEP = consequence
-    if sw_annotation == "annovar":
-        generateTableFromVCF_annovar(vcf_handler, database, project_name)
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_refgene', 'ac', 'af', 'exonicfunc_ensgene']
-        mutation_col = 'exonicfunc_ensgene'
-    elif sw_annotation == "vep":
-        generateTableFromVCF_VEP(vcf_handler, database, project_name)
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'symbol', 'ac', 'af', 'consequence']
-        mutation_col = 'consequence'
-    else:
-        generateTableFromVCF_VEP(vcf_handler, database, project_name)
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'ac', 'af']
-        mutation_col = 'chrom'
+    drop_query = "DROP TABLE IF EXISTS {};".format(project_name)
+    defaultStatement = "CREATE TABLE {} " \
+                        "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
+                        "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, ".format(project_name)
 
-    # Single execution for every set of values
-    # loading_time = populateTablesSQLite3(vcf_handler, database, sw_annotation, project_name)
+    # Get attribute names to use as columns in the table
+    table_columns = []
+    columns_clean = []
+    for key, info in vcf_handler.infos.items():
+        # Get the attribute type
+        if info.type == "String":
+            table_type = "TEXT"
+        elif info.type == "Float":
+            table_type = "REAL"
+        elif info.type == "Integer":
+            table_type = "INTEGER"
+        else:
+            table_type = "TEXT"
+        # Get the attribute name
+        if key[0].isdigit():
+            table_columns.append('"u' + key + '" ' + table_type + ", ")
+            columns_clean.append(key)
+        elif key.startswith("GERP"):
+            table_columns.append('"GERP_RS"' + table_type + ", ")
+            columns_clean.append(key)
+        elif key.startswith("CSQ"):
+            start_pos = int(info.desc.index(":")) + 2
+            for field in info.desc[start_pos:].split('|'):
+                table_columns.append('"' + field + '" ' + "TEXT" + ", ")
+                columns_clean.append(field)
+        else:
+            table_columns.append('"' + key + '" ' + table_type + ", ")
+            columns_clean.append(key)
 
-    # Multiple execution
-    loading_time, vcf_store_time, record_store_time, n_record = populateTablesSQLite3_executemany(vcf_handler, database,
-                                                                                                  sw_annotation,
-                                                                                                  project_name)
+    # Get sample to use as columns in the table
+    sampleStatement = ""
+    for sample in vcf_handler.samples:
+        sampleStatement += '"' + sample + '"' + " TEXT, "
+
+    # Build query
+    query = defaultStatement + ''.join(table_columns) + sampleStatement[:-2] + ");"
+
+    # Create table
+    conn = sqlite3.connect(database)
+    c = conn.cursor()
+    c.execute(drop_query)
+    print("SQL query to generate table for VCF file \n{}".format(query.count(',')))
+    c.execute(query)
+    conn.commit()
+    c.close()
+
+    # Add records to table
+    print('Uploading VCF data to database')
+    loading_time, vcf_store_time, record_store_time, n_record = _populateDatabase(vcf_handler, 
+                                                                                  database,
+                                                                                  project_name,
+                                                                                  columns_clean)
     n_record_rate = n_record / vcf_store_time
-    # Add DB in myVCF_DB--> dbinfo
 
+    # Add dataset info to DB in myVCF_DB--> dbinfo
+    print('Adding dataset info to the database')
     db = DbInfo.objects.create(project_name=project_name,
                                gene_annotation=annotation_version,
                                sw_annotation=sw_annotation,
@@ -461,8 +380,7 @@ def submit_vcf(request):
                                samples_len=samples_len,
                                default_col=default_col,
                                mutation_col=mutation_col,
-                               assembly_version=assembly_version
-                               )
+                               assembly_version=assembly_version)
     db.save()
 
     # Output the context
@@ -486,10 +404,15 @@ def submit_vcf(request):
                "inspectdb",
                "--database",
                project_db]
-    m = check_output(command)
+    try:
+        print("Modyfing model with command {}".format(command))
+        m = check_output(command)
+    except CalledProcessError as e:
+        print("Error modifying whe model when uploading VCF file \n{}".format(e))
     m = re.sub('managed = False\n', "", m)
     fm = open(models, "w")
     fm.write(m)
     fm.close()
 
+    # Redirect to upload summary stats page
     return render(request, 'vcf_submitted.html', context)

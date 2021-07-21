@@ -11,252 +11,234 @@
 <script type="text/javascript" src="{% static 'vcfdb/js/bootstrapValidator.min.js' %}"></script>
 
 <script>
-function titleCase(str) {
-  str = str.toLowerCase().split(' ');
-  for (var i = 0; i < str.length; i++) {
-    str[i] = str[i].charAt(0).toUpperCase() + str[i].slice(1);
-  }
-  return str.join(' ');
-}
+    function titleCase(str) {
+        str = str.toLowerCase().split(' ');
+        for (var i = 0; i < str.length; i++) {
+            str[i] = str[i].charAt(0).toUpperCase() + str[i].slice(1);
+        }
+        return str.join(' ');
+    }
 
-$(document).ready(function() {
-// Modal script
-    $('#myModal_delete').on('show.bs.modal', function(event) {
-    //catch the id for later deletion, and username to display on modal
-        var button = $(event.relatedTarget) // Button that triggered the modal
-        var g = button.data('id') // Extract info from data-* attributes
-
-        //console.log('ok')
-
-        $('#myModal_delete .modal-body').html("<p>Do you want to delete group: " + '<b>' + g + '</b>' + ' ?</p>');
-        // Pass the id of the project to the modal
-        $('#myModal_delete').data('id', g);
-    });
-
-    $('#btnYes').on('click', function() {
-        $(this).button('loading');
-        var g = $('#myModal_delete').data('id');
-        console.log(g);
-        $.ajax({
-            url: 'delete_group/',
-            type: 'POST',
-            data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
-                   'g_name' : g}, // data sent with the post request
-            success: function(obj){
-                // Get the obj from django function
-                var res = JSON.parse(obj);
-
-                console.log("success"); // another sanity check
-
-                $('#myModal_delete').modal('hide');
-
-                // Delete confirmation
-                $('#title_confirm').html(res.project_name+" : "+res.msg_validate);
-                $('#myModal_confirm').modal('show');
-
-            }
+    $(document).ready(function() {
+        // Modal script
+        $('#myModal_delete').on('show.bs.modal', function(event) {
+            //catch the id for later deletion, and username to display on modal
+            var button = $(event.relatedTarget) // Button that triggered the modal
+            var g = button.data('id') // Extract info from data-* attributes
+            //console.log('ok')
+            $('#myModal_delete .modal-body').html("<p>Do you want to delete group: " + '<b>' + g + '</b>' + ' ?</p>');
+            // Pass the id of the project to the modal
+            $('#myModal_delete').data('id', g);
         });
 
+        $('#btnYes').on('click', function() {
+            $(this).button('loading');
+            var g = $('#myModal_delete').data('id');
+            console.log(g);
+            $.ajax({
+                url: 'delete_group/',
+                type: 'POST',
+                data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'g_name' : g}, // data sent with the post request
+                success: function(obj){
+                    // Get the obj from django function
+                    var res = JSON.parse(obj);
+                    console.log("success"); // another sanity check
+                    $('#myModal_delete').modal('hide');
+                    // Delete confirmation
+                    $('#title_confirm').html(res.project_name+" : "+res.msg_validate);
+                    $('#myModal_confirm').modal('show');
 
-    return false;
-    });
-
-// Populate the input buttons with the column from "default_col" DB field
-    $.ajax({
-        url : "get_sample_list/", // the endpoint
-        type : "POST", // http method
-        data : {'csrfmiddlewaretoken': '{{ csrf_token }}'},
-
-        // handle a successful response
-        success : function(obj) {
-            var res = JSON.parse(obj);
-            console.log(res.sanity_check);
-            console.log(res.sample_col);
-            var samples = "";
-            for (col in res.sample_col) {
-                sample_value = res.sample_col[col];
-                sample_name = titleCase(sample_value);
-                samples += "<option value="+ sample_value +">"+ sample_name +"</option>"
-            };
-            $('#samples_list').append(samples)
-        }
-    });
-
-// Populate the input buttons with the column from "default_col" DB field
-    $.ajax({
-        url : "get_col_list/", // the endpoint
-        type : "POST", // http method
-        data : {'csrfmiddlewaretoken': '{{ csrf_token }}'},
-
-        // handle a successful response
-        success : function(obj) {
-            var res = JSON.parse(obj);
-            //console.log(res)
-            var visible_col = "";
-            var other_col = "";
-            var all_col = "";
-
-            // Columns already selected
-            for (col in res.default_cols) {
-                col_name = titleCase(res.default_cols[col]);
-                visible_col += "<label class='btn btn-primary active'><input type='checkbox' name=cols value='"+ res.default_cols[col] +"' autocomplete='off' checked>"+ col_name +"</label>"
-                //console.log(res.default_cols[col])
-            };
-
-            $('#value_visibility').append(visible_col);
-
-            // Available columns to be selected
-            for (col in res.other_cols) {
-                othercol_name = titleCase(res.other_cols[col])
-                other_col += "<label class='btn btn-primary'><input type='checkbox' name=cols value='"+ res.other_cols[col] +"' autocomplete='off'> "+othercol_name+"</label>";
-            };
-
-            $('#othercol_group').append(other_col);
-            console.log(res.mutation_col)
-            for (col in res.all_cols) {
-                allcol_name = titleCase(res.all_cols[col])
-                if (res.all_cols[col]==res.mutation_col){
-                    all_col += "<option selected value='"+res.all_cols[col]+"'>"+allcol_name+"</option>";
                 }
-                else {
-                    all_col += "<option value='"+res.all_cols[col]+"'>"+allcol_name+"</option>";
+            });
+            return false;
+        });
+
+        // Populate the input buttons with the column from "default_col" DB field
+        $.ajax({
+            url : "get_sample_list/", // the endpoint
+            type : "POST", // http method
+            data : {'csrfmiddlewaretoken': '{{ csrf_token }}'},
+
+            // handle a successful response
+            success : function(obj) {
+                var res = JSON.parse(obj);
+                console.log(res.sanity_check);
+                console.log(res.sample_col);
+                var samples = "";
+                for (col in res.sample_col) {
+                    sample_value = res.sample_col[col];
+                    sample_name = titleCase(sample_value);
+                    samples += "<option value="+ sample_value +">"+ sample_name +"</option>"
                 };
-            };
-
-            // All possilble field for mutation type
-            $('#mutation_col').append(all_col);
-            //console.log(visible_col); // another sanity check
-            //console.log("success"); // another sanity check
-
-        },
-
-        // handle a non-successful response
-        error : function(xhr,errmsg,err) {
-            console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
-        }
-    });
-
-
-    var frm = $('#editPreferences');
-    frm.submit(function () {
-        $.ajax({
-            type: frm.attr('method'),
-            url: frm.attr('action'),
-            data: frm.serialize(),
-            success: function (obj) {
-                var res = JSON.parse(obj);
-
-                bootbox.alert({
-                    size: 'medium',
-                    title: 'Changes confirmation: OK',
-                    message: 'Preferences has been changed!',
-                    callback: function(){ window.location.reload() }
-                })
-
-            },
-            error: function(obj) {
-                bootbox.alert("no good!")
+                $('#samples_list').append(samples)
             }
         });
-        return false;
-    });
 
-    var group_frm = $('#defineGroups');
-    console.log(group_frm.serialize())
-    group_frm.submit(function () {
+        // Populate the input buttons with the column from "default_col" DB field
         $.ajax({
-            type: group_frm.attr('method'),
-            url: group_frm.attr('action'),
-            data: group_frm.serialize(),
-            success: function (obj) {
-                var res = JSON.parse(obj);
-                bootbox.alert({
-                    size: 'medium',
-                    title: 'Group saved: OK',
-                    message: res,
-                    callback: function(){ window.location.reload() }
-                })
+            url : "get_col_list/", // the endpoint
+            type : "POST", // http method
+            data : {'csrfmiddlewaretoken': '{{ csrf_token }}'},
 
+            // handle a successful response
+            success : function(obj) {
+                var res = JSON.parse(obj);
+                //console.log(res)
+                var visible_col = "";
+                var other_col = "";
+                var all_col = "";
+
+                // Columns already selected
+                for (col in res.default_cols) {
+                    col_name = titleCase(res.default_cols[col]);
+                    visible_col += "<label class='btn btn-primary active'><input type='checkbox' name=cols value='"+ res.default_cols[col] +"' autocomplete='off' checked>"+ col_name +"</label>"
+                    //console.log(res.default_cols[col])
+                };
+                $('#value_visibility').append(visible_col);
+
+                // Available columns to be selected
+                for (col in res.other_cols) {
+                    othercol_name = titleCase(res.other_cols[col])
+                    other_col += "<label class='btn btn-primary'><input type='checkbox' name=cols value='"+ res.other_cols[col] +"' autocomplete='off'> "+othercol_name+"</label>";
+                };
+                $('#othercol_group').append(other_col);
+                console.log(res.mutation_col)
+
+                for (col in res.all_cols) {
+                    allcol_name = titleCase(res.all_cols[col])
+                    if (res.all_cols[col]==res.mutation_col) {
+                        all_col += "<option selected value='"+res.all_cols[col]+"'>"+allcol_name+"</option>";
+                    } else {
+                        all_col += "<option value='"+res.all_cols[col]+"'>"+allcol_name+"</option>";
+                    };
+                };
+                // All possilble field for mutation type
+                $('#mutation_col').append(all_col);
+                //console.log(visible_col); // another sanity check
+                //console.log("success"); // another sanity check
             },
-            error: function(obj,xhr,errmsg,err) {
-                bootbox.alert("no good!");
+
+            // handle a non-successful response
+            error : function(xhr,errmsg,err) {
                 console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
-                console.log(obj)
             }
         });
-        return false;
-    });
 
-})
+        var frm = $('#editPreferences');
+        frm.submit(function () {
+            $.ajax({
+                type: frm.attr('method'),
+                url: frm.attr('action'),
+                data: frm.serialize(),
+                success: function (obj) {
+                    var res = JSON.parse(obj);
+                    bootbox.alert({
+                        size: 'medium',
+                        title: 'Changes confirmation: OK',
+                        message: 'Preferences has been changed!',
+                        callback: function(){ window.location.reload() }
+                    })
+                },
+                error: function(obj) {
+                    bootbox.alert("no good!")
+                }
+            });
+            return false;
+        });
+
+        var group_frm = $('#defineGroups');
+        console.log(group_frm.serialize())
+        group_frm.submit(function () {
+            $.ajax({
+                type: group_frm.attr('method'),
+                url: group_frm.attr('action'),
+                data: group_frm.serialize(),
+                success: function (obj) {
+                    var res = JSON.parse(obj);
+                    bootbox.alert({
+                        size: 'medium',
+                        title: 'Group saved: OK',
+                        message: res,
+                        callback: function(){ window.location.reload() }
+                    })
+                },
+                error: function(obj,xhr,errmsg,err) {
+                    bootbox.alert("no good!");
+                    console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
+                    console.log(obj)
+                }
+            });
+            return false;
+        });
+    })
 </script>
 
 <script>
-$(document).ready(function() {
-    $("#defineGroups")
-    // On error in group_name, get the message from msg_validate object
-    .on('error.field.bv', function(e, data) {
-        $("#validMsg_group_name").hide();
-            if (data.field === 'new_group_name' && data.validator === 'remote') {
-                var msg = data.result.msg_validate;
-                console.log("Check");
-                // Update the message
-                msg
-                    ? data.bv.updateMessage('new_group_name', 'remote', msg)
-                    : data.bv.updateMessage('new_group_name', 'remote', 'The Group name is already present');
-            }
-    })
-
-    .on('success.field.bv', function(e, data) {
-            if (data.bv.getInvalidFields().length > 0) {    // There is invalid field
-                data.bv.disableSubmitButtons(true);
-            };
-            var validator = data.validator,
-                field  = data.field,   // Get the field name
-                $field = data.element
-
-            if (field === 'new_group_name' && validator === 'remote') {
-                var msg = data.result.msg_validate;
-                $("#warnMsg_group_name").hide();
-                // console.log("Check");
-                // Show a valid message
-                $("#validMsg_group_name").html("<p>The Group name is good!</p>");
+    $(document).ready(function() {
+        $("#defineGroups")
+            // On error in group_name, get the message from msg_validate object
+            .on('error.field.bv', function(e, data) {
+                $("#validMsg_group_name").hide();
+                    if (data.field === 'new_group_name' && data.validator === 'remote') {
+                        var msg = data.result.msg_validate;
+                        console.log("Check");
+                        // Update the message
+                        msg
+                            ? data.bv.updateMessage('new_group_name', 'remote', msg)
+                            : data.bv.updateMessage('new_group_name', 'remote', 'The Group name is already present');
+                    }
+            })
+            // On success
+            .on('success.field.bv', function(e, data) {
+                if (data.bv.getInvalidFields().length > 0) {    // There is invalid field
+                    data.bv.disableSubmitButtons(true);
+                };
+                var validator = data.validator,
+                    field  = data.field,   // Get the field name
+                    $field = data.element
+                if (field === 'new_group_name' && validator === 'remote') {
+                    var msg = data.result.msg_validate;
+                    $("#warnMsg_group_name").hide();
+                    // console.log("Check");
+                    // Show a valid message
+                    $("#validMsg_group_name").html("<p>The Group name is good!</p>");
                 }
-            $("#validMsg_group_name").show();
-    })
-
-    .bootstrapValidator({
-        excluded: ':disabled',
-        feedbackIcons: {
-            valid: 'glyphicon glyphicon-ok',
-            invalid: 'glyphicon glyphicon-remove',
-            validating: 'glyphicon glyphicon-refresh'
-        },
-        fields: {
-            new_group_name: {
-                validators: {
-                    remote: {
-                        message: 'The Group name is not available',
-                        url: "check_group_name/",
-                        type: "POST",
-                        data: {'csrfmiddlewaretoken': '{{ csrf_token }}'}
-                    },
-                    regexp: {
-                        regexp: /^[a-zA-Z0-9]+$/,
-                        message: 'The Group name can only consist of alphabetical, number'
-                    },
-                    notEmpty: {
-                        message: 'The Group name is required and cannot be empty'
-                    },
+                $("#validMsg_group_name").show();
+            })
+        .bootstrapValidator({
+            excluded: ':disabled',
+            feedbackIcons: {
+                valid: 'glyphicon glyphicon-ok',
+                invalid: 'glyphicon glyphicon-remove',
+                validating: 'glyphicon glyphicon-refresh'
+            },
+            fields: {
+                new_group_name: {
+                    validators: {
+                        remote: {
+                            message: 'The Group name is not available',
+                            url: "check_group_name/",
+                            type: "POST",
+                            data: {'csrfmiddlewaretoken': '{{ csrf_token }}'}
+                        },
+                        regexp: {
+                            regexp: /^[a-zA-Z0-9]+$/,
+                            message: 'The Group name can only consist of alphabetical, number'
+                        },
+                        notEmpty: {
+                            message: 'The Group name is required and cannot be empty'
+                        },
+                    }
                 }
             }
-        }
-    })
-    .on('success.form.bv',function(e){
-      e.preventDefault(); // <----- THIS IS NEEDED
-    })
+        })
+        .on('success.form.bv',function(e) {
+            e.preventDefault(); // <----- THIS IS NEEDED
+        })
 });
-
 </script>
+
 <!--Adjust glyph icon -->
 <style type="text/css">
     #defineGroups .selectContainer .form-control-feedback {
@@ -264,7 +246,6 @@ $(document).ready(function() {
         right: -15px;
     }
 </style>
-
 
 {% endblock %}
 
@@ -274,7 +255,6 @@ $(document).ready(function() {
         <nav>
             <ul class="nav nav-pills pull-right">
                 <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Home</a></li>
-                <li role="presentation"><a href="mailto:pietrelli@ingm.org?subject=[myVCF] Issue">Contact Developer</a></li>
                 <li role="presentation"><a href="/">myVCF Page</a></li>
             </ul>
         </nav>
@@ -356,6 +336,7 @@ $(document).ready(function() {
                 </div>
                 <div class="center-block col-md-6">
                     <select class="form-control" name="maf_col" id="maf_project_col">
+                        <option value='0.1'>MAF >= 0.1</option>
                         <option value='0.05'>MAF >= 0.05</option>
                         <option value='0.01'>MAF >= 0.01</option>
                         <option value='0.005'>MAF >= 0.005</option>

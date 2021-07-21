@@ -22,6 +22,15 @@ class Gene84(models.Model):
         return self.ensgene
 
 
+class Gene104(models.Model):
+    ensgene = models.TextField(db_column='Ensgene_ID', blank=False, null=False)
+    genename = models.TextField(db_column='Gene_name', blank=True)
+    description = models.TextField(db_column='Description', blank=True)
+
+    def __unicode__(self):
+        return self.ensgene
+
+
 class Log(models.Model):
     log_text = models.TextField()
     log_date = models.DateTimeField('log modified')

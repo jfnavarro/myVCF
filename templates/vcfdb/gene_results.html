@@ -23,275 +23,268 @@
 
 {# Datatable script #}
 <script>
-$(document).ready( function() {
-  $(".dropdown-menu li a").click(function(){
-      var selText = $(this).text();
-      $(this).parents('.btn-group').find('.dropdown-toggle').html(selText+' <span class="caret"></span>');
-  });
+    $(document).ready( function() {
+        $(".dropdown-menu li a").click(function() {
+            var selText = $(this).text();
+            $(this).parents('.btn-group').find('.dropdown-toggle').html(selText+' <span class="caret"></span>');
+        });
 
-  var table = $("#mutation_list").DataTable({
-    "dom": 'Bftlipr',
-    "columns": [
-        {"name" : 'Variant', "visible" : true},
-         {% for field in all_fields %}
-            {% if field in default_col %}
-                { "name": "{{ field }}", "visible" : true },
-            {% else %}
-                { "name": "{{ field }}", "visible" : false },
-            {% endif %}
-         {% endfor %}
-        ],
-    "buttons":{
-        name: 'primary',
-        buttons: [
-            {
-                extend: 'colvisGroup',
-                text: 'Samples GT',
-                show: [ {% for col in samples_col %}
-                            '{{ col|lower }}:name',
-                        {% endfor %} ],
-            },
-            'colvis',
-            'colvisRestore',
-            {
-                extend: 'collection',
-                text: 'Export',
+        var table = $("#mutation_list").DataTable({
+            "dom": 'Bftlipr',
+            "columns": [
+                {"name" : 'Variant', "visible" : true},
+                {% for field in all_fields %}
+                    {% if field in default_col %}
+                        { "name": "{{ field }}", "visible" : true },
+                    {% else %}
+                        { "name": "{{ field }}", "visible" : false },
+                    {% endif %}
+                {% endfor %}
+                ],
+            "buttons":{
+                name: 'primary',
                 buttons: [
                     {
-                    extend: "excel",
-                    exportOptions: {
-                        columns: ':visible',
-                        },
+                        extend: 'colvisGroup',
+                        text: 'Samples GT',
+                        show: [ {% for col in samples_col %}
+                                    '{{ col|lower }}:name',
+                                {% endfor %} ],
                     },
+                    'colvis',
+                    'colvisRestore',
                     {
-                    extend: "pdf",
-                    exportOptions: {
-                        columns: ':visible',
-                        },
+                        extend: 'collection',
+                        text: 'Export',
+                        buttons: [
+                            {
+                            extend: "excel",
+                            exportOptions: {
+                                columns: ':visible',
+                                },
+                            },
+                            {
+                            extend: "pdf",
+                            exportOptions: {
+                                columns: ':visible',
+                                },
+                            },
+                        ]
                     },
-                ]
-            },
-            ],
-        },
-    fade: true,
-    colReorder: false,
-    stateSave: false,
-    "bAutoWidth": false,
-    initComplete: function () {
-            console.log('init completed');
-            this.api().columns().every( function () {
-                var column = this;
-                var idx = column.index();
-                var select = $('<select><option value=""></option></select>')
-                    .appendTo( $(column.footer()).empty() )
-                    .on( 'change', function () {
-                        var val = $.fn.dataTable.util.escapeRegex(
-                            $(this).val()
-                        );
-
-                        column
-                            .search( val ? '^'+val+'$' : '', true, false )
-                            .draw();
-                    } );
-                if (idx != 0 & idx != 4 ){
-                column.data().unique().sort().each( function ( d, j ) {
-                    select.append( '<option value='+d+'>'+d+'</option>' )
-                } );
-                }
-            } );
-        }
-  } );
-var click_counter = 0
-{# Row filtering buttons #}
-  $("#pass_filter").click(function() {
-    click_counter+=1;
-    $.fn.dataTable.ext.search.push(
-      function(settings, data, dataIndex) {
-        var idx = table.column('filter:name').index()
-        return (data[idx] == "PASS")
-                ? true
-                : false
-        }
-    );
-    table.draw();
-    $.fn.dataTable.ext.search.pop();
-  });
-
-  $("#af_filter li a").click(function() {
-    click_counter+=1;
-    console.log(click_counter)
-    $.fn.dataTable.ext.search.push(
-      function(settings, data, dataIndex) {
-        var idx = table.column('af:name').index()
-        return (Number(data[idx]) <= Number($('#button_af_filter').text()))
-                ? true
-                : false
-      }
-    );
-    table.draw();
-    if ($("#button_sample_group span") == "") {
-        $.fn.dataTable.ext.search.pop();
-    }
-  });
-
-  $("#sample_group li a").click(function() {
-    click_counter+=1;
-    console.log(click_counter)
-    var sample_string = $('#sample_group li a').data('id');
-    var sample_list = sample_string.split(",");
-    var g_sum = ""
-    $.each(sample_list, function(index, value){
-        //console.log(value);
-        sample_genotype = table.rows().column(value+':name').data();
-        //console.log(sample_genotype);
-        if (g_sum == ""){
-            g_sum = sample_genotype
-        }
-        else{
-            g_sum = g_sum.map(function (num, idx) {
-                return Number(num) + Number(sample_genotype[idx]);
-            });
-        };
-        //console.log(g_sum);
-    })
-
-    var valid_rows = new Array();
-
-    $.each(g_sum, function(index, genotype){
-        r_index = table.row(index).index()
-        if (g_sum[index]>0){
-            valid_rows.push(r_index)
-            }
-        })
-    //console.log(valid_rows);
-    $.fn.dataTable.ext.search.push(
-      function(settings, data, dataIndex) {
-        //console.log(data);
-        //console.log(dataIndex);
-        return ($.inArray(dataIndex, valid_rows) != -1)
-                ? true
-                : false
-      }
-    );
-    table.draw();
-    if ($("#button_af_filter") == "") {
-        $.fn.dataTable.ext.search.pop();
-    }
-  });
-
-  $("#reset_filter").click(function() {
-    $("#button_af_filter").html('MAF Threshold <span class="caret"></span>');
-    $("#button_sample_group").html('Samples Group<span class="caret"></span>');
-    for (i = 0; i < click_counter; i++) {
-        $.fn.dataTable.ext.search.pop();
-    };
-    click_counter = 0;
-    table.draw();
-  });
-
-{# Highcharts script #}
-$(function () {
-    $('#mutation_plot_body').highcharts({
-        chart: {
-        type: 'column',
-        },
-
-        series: [{
-            name: 'Mutation #',
-            data: [
-                {% for value in values %}
-                    {{ value }},
-                {% endfor %}
-            ],
-        }],
-
-        title: {
-            {% if type == "gene" %}
-                text: '{{ gene_symbol.genename }}',
-            {% else %}
-                text: 'Region {{ query }}',
-            {% endif %}
-            x: -20 //center
-        },
-        subtitle: {
-            {% if type == "gene" %}
-                text: '{{ query }}',
-            {% else %}
-                text: '',
-            {% endif %}
-            x: -20
-        },
-        xAxis: {
-            categories: [
-                {% for cat in category %}
-                    '{{ cat }}',
-                {% endfor %}
-            ]
-        },
-        yAxis: {
-            title: {
-                text: '# Mutations'
-            },
-            plotLines: [{
-                value: 0,
-                width: 1,
-                color: '#808080'
-            }]
-        },
-        tooltip: {
-            valuePrefix: '#'
-        },
-        legend: {
-            layout: 'vertical',
-            align: 'right',
-            verticalAlign: 'middle',
-            borderWidth: 0
-        },
-
-    });
-});
-});
-
-</script>
-
-<script>
-$(document).ready( function() {
-    $('#plink').on('click', function() {
-        $.ajax({
-            {% if type == "gene" %}
-            url: 'plink_gene/',
-            type: 'POST',
-            data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
-                   'project_name' : '{{ project_name }}', // data sent with the post request
-                   'gene_ensgene' : '{{ query }}',
-                   },
-            {% else %}
-            url: 'plink_region/',
-            type: 'POST',
-            data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
-                   'project_name' : '{{project_name}}', // data sent with the post request
-                   'region' : '{{ query }}',
-                   },
-            {% endif %}
-            success: function(obj) {
-                var data = JSON.parse(obj)
-                console.log(data.ped);
-                u_map = "data:text/csv;charset=UTF-8," + encodeURIComponent(data.map);
-                $("#plink_map_download").attr({
-                    "download" : data.map_filename,
-                    "href" : u_map
-                }).get(0).click();
-
-                u_ped = "data:text/csv;charset=UTF-8," + encodeURIComponent(data.ped);
-                $("#plink_ped_download").attr({
-                    "download" : data.ped_filename,
-                    "href" : u_ped
-                }).get(0).click();
-
+                    ],
+                },
+            fade: true,
+            colReorder: false,
+            stateSave: false,
+            "bAutoWidth": false,
+            initComplete: function () {
+                console.log('init completed');
+                this.api().columns().every( function () {
+                    var column = this;
+                    var idx = column.index();
+                    var select = $('<select><option value=""></option></select>')
+                        .appendTo( $(column.footer()).empty() )
+                        .on( 'change', function () {
+                            var val = $.fn.dataTable.util.escapeRegex(
+                                $(this).val()
+                            );
+                            column
+                                .search( val ? '^'+val+'$' : '', true, false )
+                                .draw();
+                        } );
+                    if (idx != 0 & idx != 4 ) {
+                        column.data().unique().sort().each( function ( d, j ) {
+                            select.append( '<option value='+d+'>'+d+'</option>' )
+                        });
+                    }
+                });
             }
         });
-    })
-})
+
+        var click_counter = 0
+        {# Row filtering buttons #}
+        $("#pass_filter").click(function() {
+            click_counter += 1;
+            $.fn.dataTable.ext.search.push(
+            function(settings, data, dataIndex) {
+                var idx = table.column('filter:name').index()
+                return (data[idx] == "PASS") ? true : false
+                }
+            );
+            table.draw();
+            $.fn.dataTable.ext.search.pop();
+        });
+
+        $("#af_filter li a").click(function() {
+            click_counter += 1;
+            console.log(click_counter)
+            $.fn.dataTable.ext.search.push(
+            function(settings, data, dataIndex) {
+                var idx = table.column('af:name').index()
+                return (Number(data[idx]) <= Number($('#button_af_filter').text())) ? true : false
+            }
+            );
+            table.draw();
+            if ($("#button_sample_group span") == "") {
+                $.fn.dataTable.ext.search.pop();
+            }
+        });
+
+        $("#sample_group li a").click(function() {
+            click_counter += 1;
+            console.log(click_counter)
+            var sample_string = $('#sample_group li a').data('id');
+            var sample_list = sample_string.split(",");
+            var g_sum = ""
+            $.each(sample_list, function(index, value){
+                //console.log(value);
+                sample_genotype = table.rows().column(value+':name').data();
+                //console.log(sample_genotype);
+                if (g_sum == "") {
+                    g_sum = sample_genotype
+                } else {
+                    g_sum = g_sum.map(function (num, idx) {
+                        return Number(num) + Number(sample_genotype[idx]);
+                    });
+                };
+                //console.log(g_sum);
+            })
+
+            var valid_rows = new Array();
+            $.each(g_sum, function(index, genotype){
+                r_index = table.row(index).index()
+                if (g_sum[index] > 0) {
+                    valid_rows.push(r_index)
+                    }
+                })
+            //console.log(valid_rows);
+            $.fn.dataTable.ext.search.push(
+            function(settings, data, dataIndex) {
+                //console.log(data);
+                //console.log(dataIndex);
+                return ($.inArray(dataIndex, valid_rows) != -1) ? true : false
+            }
+            );
+
+            table.draw();
+            if ($("#button_af_filter") == "") {
+                $.fn.dataTable.ext.search.pop();
+            }
+        });
+
+        $("#reset_filter").click(function() {
+            $("#button_af_filter").html('MAF Threshold <span class="caret"></span>');
+            $("#button_sample_group").html('Samples Group<span class="caret"></span>');
+            for (i = 0; i < click_counter; i++) {
+                $.fn.dataTable.ext.search.pop();
+            };
+            click_counter = 0;
+            table.draw();
+        });
+
+        {# Highcharts script #}
+        $(function () {
+            $('#mutation_plot_body').highcharts({
+                chart: {
+                type: 'column',
+                },
+
+                series: [{
+                    name: 'Mutation #',
+                    data: [
+                        {% for value in values %}
+                            {{ value }},
+                        {% endfor %}
+                    ],
+                }],
+
+                title: {
+                    {% if type == "gene" %}
+                        text: '{{ gene_symbol.genename }}',
+                    {% else %}
+                        text: 'Region {{ query }}',
+                    {% endif %}
+                    x: -20 //center
+                },
+                subtitle: {
+                    {% if type == "gene" %}
+                        text: '{{ query }}',
+                    {% else %}
+                        text: '',
+                    {% endif %}
+                    x: -20
+                },
+                xAxis: {
+                    categories: [
+                        {% for cat in category %}
+                            '{{ cat }}',
+                        {% endfor %}
+                    ]
+                },
+                yAxis: {
+                    title: {
+                        text: '# Mutations'
+                    },
+                    plotLines: [{
+                        value: 0,
+                        width: 1,
+                        color: '#808080'
+                    }]
+                },
+                tooltip: {
+                    valuePrefix: '#'
+                },
+                legend: {
+                    layout: 'vertical',
+                    align: 'right',
+                    verticalAlign: 'middle',
+                    borderWidth: 0
+                },
+
+            });
+        });
+        });
+
+    </script>
+
+    <script>
+        $(document).ready( function() {
+            $('#plink').on('click', function() {
+                $.ajax({
+                    {% if type == "gene" %}
+                    url: 'plink_gene/',
+                    type: 'POST',
+                    data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
+                        'project_name' : '{{ project_name }}', // data sent with the post request
+                        'gene_ensgene' : '{{ query }}',
+                        },
+                    {% else %}
+                    url: 'plink_region/',
+                    type: 'POST',
+                    data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
+                        'project_name' : '{{project_name}}', // data sent with the post request
+                        'region' : '{{ query }}',
+                        },
+                    {% endif %}
+
+                    success: function(obj) {
+                        var data = JSON.parse(obj)
+                        console.log(data.ped);
+                        u_map = "data:text/csv;charset=UTF-8," + encodeURIComponent(data.map);
+                        $("#plink_map_download").attr({
+                            "download" : data.map_filename,
+                            "href" : u_map
+                        }).get(0).click();
+
+                        u_ped = "data:text/csv;charset=UTF-8," + encodeURIComponent(data.ped);
+                        $("#plink_ped_download").attr({
+                            "download" : data.ped_filename,
+                            "href" : u_ped
+                        }).get(0).click();
+                    }
+                });
+            })
+        })
 </script>
 
 {% endblock %}
@@ -301,13 +294,11 @@ $(document).ready( function() {
 {% block body %}
 
 
-
 <div class="container">
     <div class="header clearfix">
         <nav>
             <ul class="nav nav-pills pull-right">
                 <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Home</a></li>
-                <li role="presentation"><a href="mailto:pietrelli@ingm.org?subject=[myVCF] Issue">Contact Developer</a></li>
                 <li role="presentation"><a href="/">myVCF Page</a></li>
             </ul>
         </nav>

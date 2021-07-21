@@ -20,255 +20,237 @@
 
 
 <script>
-$(document).ready(function() {
-
-    if ({{ low_ac }} == 1) {
-        console.log("Alert Low_AC");
-        $('#alert_ac').show()
-    };
-
-    $.ajax({
-        url : "get_insilico_pred/", // the endpoint
-        type : "POST", // http method
-        data : {'csrfmiddlewaretoken': '{{ csrf_token }}',
-                'variant' : '{{ variant }}',
-                'project_name' : '{{ project_name }}'},
-
-        // handle a successful response
-        success : function(obj) {
-            var res = JSON.parse(obj);
-            d = res.data.dbnsfp;
-            console.log(d);
-            $('#polyphen_hdiv').html(d.polyphen2.hdiv.pred);
-            $('#polyphen_hvar').html(d.polyphen2.hvar.pred);
-            $('#sift').html(d.sift.pred[0]);
-            }
-        })
-
-    {# 1000G REST script (VEP) #}
-    $('#pop_table_1000g').dataTable({
-        dom: 't',
-        processing: true,
-        language: {
-            "emptyTable": "This variant is not present in 1000G Phase 3",
-        },
-        ajax: {
-            url: "get_1000g_data/",
-            data: {
-                'csrfmiddlewaretoken': '{{ csrf_token }}',
-                'project_name' : '{{ project_name }}',
-                'variant' : '{{ variant }}' },
-            type: 'POST',
-            error: function (xhr, error, thrown) {
-                $('#pop_table_1000g').DataTable().clear().draw();
+    $(document).ready(function() {
+        if ({{ low_ac }} == 1) {
+            console.log("Alert Low_AC");
+            $('#alert_ac').show()
+        };
+        $.ajax({
+            url : "get_insilico_pred/", // the endpoint
+            type : "POST", // http method
+            data : {'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'variant' : '{{ variant }}',
+                    'project_name' : '{{ project_name }}'},
+            // handle a successful response
+            success : function(obj) {
+                var res = JSON.parse(obj);
+                d = res.data.dbnsfp;
+                console.log(d);
+                $('#polyphen_hdiv').html(d.polyphen2.hdiv.pred);
+                $('#polyphen_hvar').html(d.polyphen2.hvar.pred);
+                $('#sift').html(d.sift.pred[0]);
+                }
+            })
+        {# 1000G REST script (VEP) #}
+        $('#pop_table_1000g').dataTable({
+            dom: 't',
+            processing: true,
+            language: {
+                "emptyTable": "This variant is not present in 1000G Phase 3",
             },
-        },
+            ajax: {
+                url: "get_1000g_data/",
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'project_name' : '{{ project_name }}',
+                    'variant' : '{{ variant }}' },
+                type: 'POST',
+                error: function (xhr, error, thrown) {
+                    $('#pop_table_1000g').DataTable().clear().draw();
+                },
+            },
 
-        footerCallback: function ( row, data, start, end, display ) {
-            var api = this.api(), data;
+            footerCallback: function ( row, data, start, end, display ) {
+                var api = this.api(), data;
+                // Remove the formatting to get integer data for summation
+                var intVal = function ( i ) {
+                    return typeof i === 'string' ?
+                        i.replace(/[\$,]/g, '')*1 :
+                        typeof i === 'number' ?
+                            i : 0;
+                };
+                // sum AF ACS
+                sum_af = api
+                    .column( 1 )
+                    .data()
+                    .reduce( function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0 );
+                // AF mean
+                total_af = sum_af/2
+                // Update footer
+                $( api.column( 1 ).footer() ).html(total_af.toFixed(6))
+            },
+            columns: [
+                { "data": "population" },
+                { "data": "pop_af" }
+            ],
+            order: [[ 1, "desc" ]]
+        });
 
-            // Remove the formatting to get integer data for summation
-            var intVal = function ( i ) {
-                return typeof i === 'string' ?
-                    i.replace(/[\$,]/g, '')*1 :
-                    typeof i === 'number' ?
-                        i : 0;
-            };
+        {# ESP REST script (VEP) #}
+        $('#pop_table_esp').dataTable({
+            dom: 't',
+            processing: true,
+            language: {
+                "emptyTable": "This variant is not present in ESP DB",
+                },
+            ajax: {
+                url: "get_esp_data/",
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'project_name' : '{{ project_name }}',
+                    'variant' : '{{ variant }}' },
+                type: 'POST',
+                error: function (xhr, error, thrown) {
+                    $('#pop_table_esp').DataTable().clear().draw();
+                },
+            },
+            footerCallback: function ( row, data, start, end, display ) {
+                var api = this.api(), data;
 
-            // sum AF ACS
-            sum_af = api
-                .column( 1 )
-                .data()
-                .reduce( function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0 );
+                // Remove the formatting to get integer data for summation
+                var intVal = function ( i ) {
+                    return typeof i === 'string' ?
+                        i.replace(/[\$,]/g, '')*1 :
+                        typeof i === 'number' ?
+                            i : 0;
+                };
+                // sum AF ACS
+                sum_af = api
+                    .column( 1 )
+                    .data()
+                    .reduce( function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0 );
+                // AF mean
+                total_af = sum_af/2
+                // Update footer
+                $( api.column( 1 ).footer() ).html(total_af.toFixed(6))
+            },
+            columns: [
+                { "data": "population" },
+                { "data": "pop_af" }
+            ],
+            order: [[ 1, "desc" ]]
+        });
 
-            // AF mean
-            total_af = sum_af/2
-
-            // Update footer
-            $( api.column( 1 ).footer() ).html(total_af.toFixed(6))
-        },
-
-        columns: [
-            { "data": "population" },
-            { "data": "pop_af" }
-        ],
-        order: [[ 1, "desc" ]]
+        {# ExAC REST script #}
+        $('#pop_table_exac').dataTable({
+            dom: 't',
+            processing: true,
+            language: {
+                "emptyTable": "This variant is not present in ExAC DB",
+            },
+            ajax: {
+                url: "get_exac_data/",
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'project_name' : '{{ project_name }}',
+                    'variant' : '{{ variant }}' },
+                type: 'POST',
+                error: function (xhr, error, thrown) {
+                    $('#pop_table_exac').DataTable().clear().draw();
+                },
+            },
+            "footerCallback": function ( row, data, start, end, display ) {
+                var api = this.api(), data;
+                // Remove the formatting to get integer data for summation
+                var intVal = function ( i ) {
+                    return typeof i === 'string' ?
+                        i.replace(/[\$,]/g, '')*1 :
+                        typeof i === 'number' ?
+                            i : 0;
+                };
+                // Total ACS
+                total_acs = api
+                    .column( 1 )
+                    .data()
+                    .reduce( function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0 );
+                // Total ANS
+                total_ans = api
+                    .column( 2 )
+                    .data()
+                    .reduce( function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0 );
+                // Total HOMS
+                total_homs = api
+                    .column( 3 )
+                    .data()
+                    .reduce( function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0 );
+                // AF mean
+                total_af = total_acs/total_ans
+                // Update footer
+                $( api.column( 1 ).footer() ).html(total_acs)
+                $( api.column( 2 ).footer() ).html(total_ans)
+                $( api.column( 3 ).footer() ).html(total_homs)
+                $( api.column( 4 ).footer() ).html(total_af.toFixed(6))
+            },
+            columns: [
+                { "data": "population" },
+                { "data": "pop_acs" },
+                { "data": "pop_ans" },
+                { "data": "pop_homs" },
+                { "data": "pop_af" }
+            ],
+            order: [[ 1, "desc" ]]
+        });
     });
-
-    {# ESP REST script (VEP) #}
-    $('#pop_table_esp').dataTable({
-        dom: 't',
-        processing: true,
-        language: {
-            "emptyTable": "This variant is not present in ESP DB",
-            },
-        ajax: {
-            url: "get_esp_data/",
-            data: {
-                'csrfmiddlewaretoken': '{{ csrf_token }}',
-                'project_name' : '{{ project_name }}',
-                'variant' : '{{ variant }}' },
-            type: 'POST',
-            error: function (xhr, error, thrown) {
-                $('#pop_table_esp').DataTable().clear().draw();
-            },
-        },
-        footerCallback: function ( row, data, start, end, display ) {
-            var api = this.api(), data;
-
-            // Remove the formatting to get integer data for summation
-            var intVal = function ( i ) {
-                return typeof i === 'string' ?
-                    i.replace(/[\$,]/g, '')*1 :
-                    typeof i === 'number' ?
-                        i : 0;
-            };
-
-            // sum AF ACS
-            sum_af = api
-                .column( 1 )
-                .data()
-                .reduce( function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0 );
-
-            // AF mean
-            total_af = sum_af/2
-
-            // Update footer
-            $( api.column( 1 ).footer() ).html(total_af.toFixed(6))
-        },
-
-        columns: [
-            { "data": "population" },
-            { "data": "pop_af" }
-        ],
-        order: [[ 1, "desc" ]]
-    });
-
-    {# ExAC REST script #}
-    $('#pop_table_exac').dataTable({
-        dom: 't',
-        processing: true,
-        language: {
-            "emptyTable": "This variant is not present in ExAC DB",
-        },
-        ajax: {
-            url: "get_exac_data/",
-            data: {
-                'csrfmiddlewaretoken': '{{ csrf_token }}',
-                'project_name' : '{{ project_name }}',
-                'variant' : '{{ variant }}' },
-            type: 'POST',
-            error: function (xhr, error, thrown) {
-                $('#pop_table_exac').DataTable().clear().draw();
-            },
-        },
-        "footerCallback": function ( row, data, start, end, display ) {
-            var api = this.api(), data;
-
-            // Remove the formatting to get integer data for summation
-            var intVal = function ( i ) {
-                return typeof i === 'string' ?
-                    i.replace(/[\$,]/g, '')*1 :
-                    typeof i === 'number' ?
-                        i : 0;
-            };
-
-            // Total ACS
-            total_acs = api
-                .column( 1 )
-                .data()
-                .reduce( function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0 );
-
-            // Total ANS
-            total_ans = api
-                .column( 2 )
-                .data()
-                .reduce( function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0 );
-            // Total HOMS
-            total_homs = api
-                .column( 3 )
-                .data()
-                .reduce( function (a, b) {
-                    return intVal(a) + intVal(b);
-                }, 0 );
-            // AF mean
-            total_af = total_acs/total_ans
-
-            // Update footer
-            $( api.column( 1 ).footer() ).html(total_acs)
-            $( api.column( 2 ).footer() ).html(total_ans)
-            $( api.column( 3 ).footer() ).html(total_homs)
-            $( api.column( 4 ).footer() ).html(total_af.toFixed(6))
-        },
-        columns: [
-            { "data": "population" },
-            { "data": "pop_acs" },
-            { "data": "pop_ans" },
-            { "data": "pop_homs" },
-            { "data": "pop_af" }
-        ],
-        order: [[ 1, "desc" ]]
-    });
-});
 </script>
 
 <script>
-{# Highcharts script #}
-$(function () {
-    $('#zigosity_plot_body').highcharts({
-        chart: {
-        type: 'bar',
-        marginBottom: 80
-        },
-
-        series: [{
-            name: 'Sample mutated',
-            data: [
-                {{zigosity_list.0}},
-                {{zigosity_list.1}},
-                {{zigosity_list.2}}
-            ],
-        }],
-        title: {
-            text: '{{ variant }}',
-            x: -20 //center
-        },
-        credits: {
-            enabled: false,
-        },
-        xAxis: {
-            min: 0,
-            minPadding: 8,
-            categories: [
-                'Ref (Homo)', 'Het', 'Alt (Homo)'
-            ]
-        },
-        yAxis: {
-            title: {
-                text: null
+    {# Highcharts script #}
+    $(function () {
+        $('#zigosity_plot_body').highcharts({
+            chart: {
+            type: 'bar',
+            marginBottom: 80
             },
+            series: [{
+                name: 'Sample mutated',
+                data: [
+                    {{zigosity_list.0}},
+                    {{zigosity_list.1}},
+                    {{zigosity_list.2}}
+                ],
+            }],
+            title: {
+                text: '{{ variant }}',
+                x: -20 //center
+            },
+            credits: {
+                enabled: false,
+            },
+            xAxis: {
+                min: 0,
+                minPadding: 8,
+                categories: [
+                    'Ref (Homo)', 'Het', 'Alt (Homo)'
+                ]
+            },
+            yAxis: {
+                title: {
+                    text: null
+                },
 
-            plotLines: [{
-                value: 0,
-                width: 1,
-                color: '#808080'
-            }]
-        },
-        legend: {
-           floating: true,
-           verticalAlign: 'bottom',
-           align:'center'
-        },
+                plotLines: [{
+                    value: 0,
+                    width: 1,
+                    color: '#808080'
+                }]
+            },
+            legend: {
+            floating: true,
+            verticalAlign: 'bottom',
+            align:'center'
+            },
+        });
     });
-});
 </script>
 
 
@@ -283,7 +265,6 @@ $(function () {
         <nav>
             <ul class="nav nav-pills pull-right">
                 <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Home</a></li>
-                <li role="presentation"><a href="mailto:pietrelli@ingm.org?subject=[myVCF] Issue">Contact Developer</a></li>
                 <li role="presentation"><a href="/">myVCF Page</a></li>
             </ul>
         </nav>
@@ -359,90 +340,92 @@ $(function () {
             </dl>
                 {% endif %} <!-- 1. End if other -->
         </div>
+
         <!-- Separator -->
         {% if sw_annotation != "other" %} <!-- 2. Start if other -->
-        <div class="col-md-1"></div>
+            <div class="col-md-1"></div>
         {% else %}
-        <div class="col-md-1"></div>
+            <div class="col-md-1"></div>
         {% endif %} <!-- 2. End if other -->
         <!-- END Separator -->
-
 
         <div class="panel panel-default col-md-5">
             <div id="zigosity_plot_heading" class="panel-heading">Zigosity</div>
             <div id="zigosity_plot_body" class="panel-body">No Data avaliable</div>
         </div>
         {% if sw_annotation == "other" %} <!-- 3. Start if other -->
-        <div class="row header">
-            <h3></h3>
-        </div>
+            <div class="row header">
+                <h3></h3>
+            </div>
         {% endif %} <!-- 3. End if other -->
 
     </div>
     {% if sw_annotation != "other" %} <!-- 4. Start if other -->
-    <div class="row header">
-        <h3>Population frequencies</h3>
-    </div>
-        <div id="exac_data" class="col-md-6 row">
-            <div class="row">
-            <strong>ExAC ({{ assembly_label }})</strong>
+        <div class="row header">
+            <h3>Population frequencies</h3>
         </div>
-             <table id="pop_table_exac" class="table small table-sm table-condensed">
-                 <thead>
-                    <th>Populations</th>
-                    <th>Allele Count</th>
-                    <th>Allele Number</th>
-                    <th>Number of Homozygous</th>
-                    <th>Allele Frequency</th>
-                 </thead>
-                 <tfoot>
-                    <th>Total</th>
-                    <th></th>
-                    <th></th>
-                    <th></th>
-                    <th></th>
-                 </tfoot>
-            </table>
-            <div id="exac_alert" class="alert alert-warning" style="display: none">
-                <b>This variant is not present in ExAC DB</b>
-            </div>
-         </div>
-        <!-- Separator -->
-        <div class="col-md-1">
-        </div>
-        <!-- END Separator -->
-        <div id="esp_data" class="col-md-5 row">
-            <div class="row">
-                <strong>ESP Database ({{ assembly_label }})</strong>
-            </div>
-             <table id="pop_table_esp" class="table small table-sm table-condensed">
-                 <thead>
-                    <th>Populations</th>
-                    <th>Allele<br>Frequency</th>
-                 </thead>
-                 <tfoot>
-                    <th>Mean</th>
-                    <th></th>
-                 </tfoot>
-            </table>
-            <table id="pop_table_1000g" class="table small table-sm table-condensed">
+            <div id="exac_data" class="col-md-6 row">
                 <div class="row">
-                    <strong>1000G Phase 3 Database ({{ assembly_label }})</strong>
-                </div>
-                 <thead>
-                    <th>Populations</th>
-                    <th>Allele<br>Frequency</th>
-                 </thead>
-                 <tfoot>
-                    <th>Mean</th>
-                    <th></th>
-                 </tfoot>
-            </table>
-            <div id="1000g_alert" class="alert alert-warning" style="display: none">
-                <b>This variant is not present in 1000g Phase 3 DB</b>
+                <strong>ExAC ({{ assembly_label }})</strong>
             </div>
-         </div>
-    </div>
+                <table id="pop_table_exac" class="table small table-sm table-condensed">
+                    <thead>
+                        <th>Populations</th>
+                        <th>Allele Count</th>
+                        <th>Allele Number</th>
+                        <th>Number of Homozygous</th>
+                        <th>Allele Frequency</th>
+                    </thead>
+                    <tfoot>
+                        <th>Total</th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                    </tfoot>
+                </table>
+                <div id="exac_alert" class="alert alert-warning" style="display: none">
+                    <b>This variant is not present in ExAC DB</b>
+                </div>
+            </div>
+            
+            <!-- Separator -->
+            <div class="col-md-1">
+            </div>
+            <!-- END Separator -->
+
+            <div id="esp_data" class="col-md-5 row">
+                <div class="row">
+                    <strong>ESP Database ({{ assembly_label }})</strong>
+                </div>
+                <table id="pop_table_esp" class="table small table-sm table-condensed">
+                    <thead>
+                        <th>Populations</th>
+                        <th>Allele<br>Frequency</th>
+                    </thead>
+                    <tfoot>
+                        <th>Mean</th>
+                        <th></th>
+                    </tfoot>
+                </table>
+                <table id="pop_table_1000g" class="table small table-sm table-condensed">
+                    <div class="row">
+                        <strong>1000G Phase 3 Database ({{ assembly_label }})</strong>
+                    </div>
+                    <thead>
+                        <th>Populations</th>
+                        <th>Allele<br>Frequency</th>
+                    </thead>
+                    <tfoot>
+                        <th>Mean</th>
+                        <th></th>
+                    </tfoot>
+                </table>
+                <div id="1000g_alert" class="alert alert-warning" style="display: none">
+                    <b>This variant is not present in 1000g Phase 3 DB</b>
+                </div>
+            </div>
+        </div>
     {% endif %} <!-- 4. End if other -->
 
  </div>

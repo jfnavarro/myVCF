@@ -6,6 +6,8 @@ from vcfdb import urls as myVCF_urls
 
 urlpatterns = [
     url(r'^$', myVCF_view.main_page),
+    url(r'^login/$', myVCF_view.user_login, name='login'),
+    url(r'^logout/$', myVCF_view.user_logout, name='logout'),
     url(r'^delete_db/$', myVCF_view.delete_db),
     url(r'^upload/$', myVCF_view.upload_project),
     url(r'^upload/preprocessing_vcf/$', myVCF_view.preprocessing_vcf),
