@@ -172,11 +172,10 @@ def preprocessing_vcf(request):
             msg = "This VCF file was not annotated with Annovar nor VEP software<br>" \
                   "Please follow the manual to use a VCF file compatible with myVCF,"
             return valid, msg, annotation
-        else:
-            if annovar_field in vcf_handler.infos.keys():
-                annotation = "annovar"
-            elif vep_field in vcf_handler.infos.keys():
-                annotation = "vep"
+        elif annovar_field in vcf_handler.infos.keys():
+            annotation = "annovar"
+        elif vep_field in vcf_handler.infos.keys():
+            annotation = "vep"
 
         valid = True
         msg = "OK!"
@@ -191,21 +190,22 @@ def preprocessing_vcf(request):
 
 
 def _populateDatabase(vcf_handler, database, project_name, columns_clean):
-    import string
+    """Internal function to populate the database with the content
+    of the VCF file. 
+    """
     import time
     from numpy import mean
-    from collections import OrderedDict
+    from collections import defaultdict
 
     autoincremental_id = 1
     data = []
-    start_time = time.time()
     record_time = []
+    start_time = time.time()
 
     print('Parsing VCF records')
-    max_columns = -1
     for record in vcf_handler:
         start_record = time.time()
-        values_dict = OrderedDict.fromkeys(columns_clean)
+        values_dict = defaultdict(str, dict.fromkeys(columns_clean))
 
         # Get FILTER status [] = PASS
         if record.FILTER == []:
@@ -213,9 +213,9 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
         else:
             filter_string = ''.join(record.FILTER)
 
-        # Get base information generation (CHR, POS, ALT ...) and ID
+        # Get base information generation (CHR, POS, ALT ...)
         values_dict['ID'] = autoincremental_id
-        values_dict['CHROM'] = record.CHROM,
+        values_dict['CHROM'] = record.CHROM
         values_dict['POS'] = str(record.POS)
         values_dict['RS_ID'] = str(record.ID)
         values_dict['REF'] = record.REF
@@ -226,24 +226,21 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
         # INFO generation
         for key, info in record.INFO.items():
             value = info[0] if type(info) == list else info
+            value = int(value) if type(value) == bool else value
             if key == "CSQ":
+                i = 1
                 for x in value.split("|"):
-                    values_dict[]
-                    info_values.append(str(x))
-            elif type(value) == bool:
-                info_values.append(str(int(value)))
+                    values_dict["CSQ{}".format(i)] = x
+                    i += 1
             else:
-                info_values.append(str(value))
+                values_dict[key] = value
 
         # Genotype generation
-        gt_values = []
         for sample in record.samples:
-            gt_values.append(sample['GT'])
+            values_dict[sample.sample] = sample['GT']
 
         autoincremental_id += 1
-        item = tuple(coordinates + info_values + gt_values)
-        data.append(item)
-        max_columns = max(len(item), max_columns)
+        data.append(tuple(values_dict.values()))
         end_record = time.time()
         record_time.append(end_record - start_record)
     print('VCF file parsed')
@@ -252,24 +249,26 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
     vcf_store_time = time.time() - start_time
     record_store_time = mean(record_time) * 1000
 
-    params = ("?," * max_columns)[:-1]
+    params = ("?," * len(columns_clean))[:-1]
     query = "INSERT OR IGNORE INTO " + project_name + " VALUES(" + params + ");"
+    success = False
     conn = sqlite3.connect(database)
-    c = conn.cursor()
     try:
-        c.execute("PRAGMA synchronous = OFF")
-        c.execute("PRAGMA journal_mode = OFF")
-        c.executemany(query, data)
+        with conn:
+            conn.execute("PRAGMA synchronous = OFF")
+            conn.execute("PRAGMA journal_mode = OFF")
+            conn.executemany(query, data)
+            success = True
     except Exception as e:
         print("Error uploading VCF data to database {}".format(e))
-    conn.commit()
-    conn.close()
+    finally:
+        conn.close()
     loading_time = (time.time() - start_time)
-    return loading_time, vcf_store_time, record_store_time, autoincremental_id
-    
+    return loading_time, vcf_store_time, record_store_time, autoincremental_id, success
+
+
 @login_required
 def submit_vcf(request):
-    import sqlite3
 
     # Reading the input
     sw_annotation = request.POST['sw_annotation']
@@ -293,7 +292,8 @@ def submit_vcf(request):
     # Annovar = exonicfunc_ensgene, gene_ensgene, func_ensgene, gene_refgene
     # VEP = consequence
     if sw_annotation == "annovar":
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_refgene', 'ac', 'af', 'exonicfunc_ensgene']
+        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_refgene', 
+                       'ac', 'af', 'exonicfunc_ensgene']
         mutation_col = 'exonicfunc_ensgene'
     elif sw_annotation == "vep":
         default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'symbol', 'ac', 'af', 'consequence']
@@ -302,15 +302,15 @@ def submit_vcf(request):
         return HttpResponse("Invalid annotation when uploading VCF file.")
 
     # Read the VCF
-    vcf_handler = vcf.Reader(open(filename, 'r'))
     print('Opening VCF file {}'.format(filename))
+    vcf_handler = vcf.Reader(open(filename, 'r'))
 
     # Get the sample list 
     samples = vcf_handler.samples
 
     # get samples number
     samples_len = len(vcf_handler.samples)
-    print('Number of samples {}'.format(samples_len))
+    print('Number of samples in VCF file {}'.format(samples_len))
 
     drop_query = "DROP TABLE IF EXISTS {};".format(project_name)
     defaultStatement = "CREATE TABLE {} " \
@@ -319,7 +319,7 @@ def submit_vcf(request):
 
     # Get attribute names to use as columns in the table
     table_columns = []
-    columns_clean = []
+    columns_clean = ["ID", "CHROM", "POS", "RS_ID", "REF", "ALT", "QUAL", "FILTER"]
     for key, info in vcf_handler.infos.items():
         # Get the attribute type
         if info.type == "String":
@@ -327,6 +327,8 @@ def submit_vcf(request):
         elif info.type == "Float":
             table_type = "REAL"
         elif info.type == "Integer":
+            table_type = "INTEGER"
+        elif info.type == "Flag":
             table_type = "INTEGER"
         else:
             table_type = "TEXT"
@@ -339,9 +341,11 @@ def submit_vcf(request):
             columns_clean.append(key)
         elif key.startswith("CSQ"):
             start_pos = int(info.desc.index(":")) + 2
+            i = 1
             for field in info.desc[start_pos:].split('|'):
                 table_columns.append('"' + field + '" ' + "TEXT" + ", ")
-                columns_clean.append(field)
+                columns_clean.append("CSQ{}".format(i))
+                i += 1
         else:
             table_columns.append('"' + key + '" ' + table_type + ", ")
             columns_clean.append(key)
@@ -350,25 +354,33 @@ def submit_vcf(request):
     sampleStatement = ""
     for sample in vcf_handler.samples:
         sampleStatement += '"' + sample + '"' + " TEXT, "
+        columns_clean.append(sample)
+    print("Number of columns in VCF file {}".format(len(columns_clean)))
 
     # Build query
     query = defaultStatement + ''.join(table_columns) + sampleStatement[:-2] + ");"
 
     # Create table
     conn = sqlite3.connect(database)
-    c = conn.cursor()
-    c.execute(drop_query)
-    print("SQL query to generate table for VCF file \n{}".format(query.count(',')))
-    c.execute(query)
-    conn.commit()
-    c.close()
+    try:
+        with conn:
+            conn.execute(drop_query)
+            conn.execute(query)
+    except Exception as e:
+        print("Error creating table from VCF data {}".format(e))
+        return HttpResponse("The VCF file seems to be malformed (table could not be created).")
+    finally:
+        conn.close()
 
     # Add records to table
     print('Uploading VCF data to database')
-    loading_time, vcf_store_time, record_store_time, n_record = _populateDatabase(vcf_handler, 
-                                                                                  database,
-                                                                                  project_name,
-                                                                                  columns_clean)
+    loading_time, vcf_store_time, record_store_time, n_record, success = _populateDatabase(vcf_handler,
+                                                                                           database,
+                                                                                           project_name,
+                                                                                           columns_clean)
+    if not success:
+        return HttpResponse("There was as an error uploading the VCF data to the database.")
+
     n_record_rate = n_record / vcf_store_time
 
     # Add dataset info to DB in myVCF_DB--> dbinfo
@@ -407,12 +419,10 @@ def submit_vcf(request):
     try:
         print("Modyfing model with command {}".format(command))
         m = check_output(command)
+        with open(models, "w") as fm:
+            fm.write(m.decode('utf-8'))
     except CalledProcessError as e:
-        print("Error modifying whe model when uploading VCF file \n{}".format(e))
-    m = re.sub('managed = False\n', "", m)
-    fm = open(models, "w")
-    fm.write(m)
-    fm.close()
+        print("Error modifying the model after uploading VCF data\n{}".format(e))
 
     # Redirect to upload summary stats page
     return render(request, 'vcf_submitted.html', context)
