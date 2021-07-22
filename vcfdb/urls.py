@@ -4,7 +4,6 @@ from vcfdb import views as myapp_views
 
 app_name = 'vcfdb'
 
-cache = {}
 urlpatterns = [
     url(r'^(?P<project_name>\w+)/$', myapp_views.project_homepage, name='index'),
     url(r'^(?P<project_name>\w+)/search/$', myapp_views.search, name='search'),
@@ -33,12 +32,12 @@ urlpatterns = [
     url(r'^(?P<project_name>\w+)/settings/save_groups/$', myapp_views.save_groups, name='save_groups'),
     url(r'^(?P<project_name>\w+)/settings/check_group_name/$', myapp_views.check_group_name, name='check_group_name'),
     url(r'^(?P<project_name>\w+)/summary_statistics/$', myapp_views.summary_statistics, name='summary_statistics'),
-    url(r'^(?P<project_name>\w+)/summary_statistics/get_qual_vcf/$', myapp_views.get_qual_vcf, {'cache': cache} ),
-    url(r'^(?P<project_name>\w+)/summary_statistics/get_mean_variations/$', myapp_views.get_mean_variations, {'cache': cache} ),
-    url(r'^(?P<project_name>\w+)/summary_statistics/get_exonictype_variations/$', myapp_views.get_exonictype_variations, {'cache': cache} ),
-    url(r'^(?P<project_name>\w+)/summary_statistics/get_biotype_variations/$', myapp_views.get_biotype_variations, {'cache': cache} ),
-    url(r'^(?P<project_name>\w+)/summary_statistics/get_chr_variations/$', myapp_views.get_chr_variations, {'cache': cache} ),
-    url(r'^(?P<project_name>\w+)/summary_statistics/get_top_genes/$', myapp_views.get_top_genes, {'cache': cache} ),
+    url(r'^(?P<project_name>\w+)/summary_statistics/get_qual_vcf/$', myapp_views.get_qual_vcf),
+    url(r'^(?P<project_name>\w+)/summary_statistics/get_mean_variations/$', myapp_views.get_mean_variations),
+    url(r'^(?P<project_name>\w+)/summary_statistics/get_exonictype_variations/$', myapp_views.get_exonictype_variations),
+    url(r'^(?P<project_name>\w+)/summary_statistics/get_biotype_variations/$', myapp_views.get_biotype_variations),
+    url(r'^(?P<project_name>\w+)/summary_statistics/get_chr_variations/$', myapp_views.get_chr_variations),
+    url(r'^(?P<project_name>\w+)/summary_statistics/get_top_genes/$', myapp_views.get_top_genes),
 ]
 
 handler404 = myapp_views.error404

@@ -1,15 +1,19 @@
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from django.apps import apps
 from django.template import RequestContext
 from django.contrib.auth.decorators import login_required
+
 import ast
 import json
 import re
 from collections import Counter
 from collections import OrderedDict
+from collections import defaultdict
+
 import numpy as np
 import requests
+
 from vcfdb.base_models import DbInfo, Groups
 
 app_label = "vcfdb"
@@ -49,45 +53,33 @@ def project_homepage(request, project_name):
     return render(request, 'index.html', context)
 
 
-@login_required(login_url="/login")
+@login_required
 def search(request, project_name):
     def is_region(query):
         res = len(re.findall(r"[:-]", query))
-        if res == 2:
-            return 1
-        else:
-            return 0
+        return res == 2
 
     def split_region(region):
         # Get the numbers from string
         r = re.findall(r"\d+", region)
         # test for element length (CHR:start-end)
-        if len(r) == 3:
-            return "%s-%s-%s" % (r[0], r[1], r[2])
-        else:
-            return 0
+        return "%s-%s-%s" % (r[0], r[1], r[2]) if len(r) == 3 else 0
 
     def is_dbsnp(query):
         # Check correct rs number
         pattern = re.compile('^rs[1-9]+', re.IGNORECASE)
-        if pattern.match(query):
-            return 1
-        else:
-            return 0
+        return pattern.match(query)
 
     def is_variant(query):
         # Check correct rs number
         pattern = re.compile('^[0-9XY]{1,2}-[0-9]+-[0-9]+-[A,T,G,C]+-[A,T,G,C]+', re.IGNORECASE)
-        if pattern.match(query):
-            return 1
-        else:
-            return 0
+        return pattern.match(query)
 
     def get_dbsnp_record(query, model_project):
-        results = model_project.objects.using(project_db).filter(rs_id=query)
-        return results
+        return model_project.objects.using(project_db).filter(rs_id=query)
 
-    if request.method == 'GET':  # If the form has been submitted...
+    # If the form has been submitted...
+    if request.method == 'GET':
         query = request.GET['q']
         dbinfo = DbInfo.objects.filter(project_name=project_name).first()
         gene_annotation = dbinfo.gene_annotation
@@ -101,7 +93,6 @@ def search(request, project_name):
         if is_region(query):
             region_query = split_region(query)
             return HttpResponseRedirect('/vcfdb/%s/region/%s' % (project_name, region_query))
-
         elif is_dbsnp(query):
             results = get_dbsnp_record(query, model_project)
             if sw_annotation == "vep":
@@ -126,7 +117,8 @@ def search(request, project_name):
             model_ensembl = apps.get_model(app_label=app_label,
                                            model_name=model_name_ensembl)
 
-            results = model_ensembl.objects.filter(genename__icontains=query).values('ensgene', 'genename',
+            results = model_ensembl.objects.filter(genename__icontains=query).values('ensgene', 
+                                                                                     'genename',
                                                                                      'description').distinct()
 
             # Get mutation count for each ENSGENE
@@ -150,54 +142,49 @@ def search(request, project_name):
             return render(request, 'search.html', context)
 
 
-@login_required(login_url="/login")
+@login_required
 def display_gene_results(request, gene_ensgene, project_name):
-    type = "gene"
 
     def get_mutations(model, sw_annotation, mutation_col, ensgene, project_db):
         # return the mutations and default_col of a particular gene based on the sw_annotation
         mutations_category = []
         if sw_annotation == "annovar":
-            # contains the ensg
-            # mutations = model.objects.using(project_db).filter(gene_ensgene__icontains=ensgene)
             # exact match
             mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
-            for m in mutations:
-                mutations_category.append(getattr(m, mutation_col).encode())
         else:
-            # contains the ensg
-            # mutations = model.objects.using(project_db).filter(gene__icontains=ensgene)
             # exact match
             mutations = model.objects.using(project_db).filter(gene__iexact=ensgene)
-            for m in mutations:
-                mutations_category.append(str(getattr(m, mutation_col).encode()))
+        for m in mutations:
+            mutations_category.append(str(getattr(m, mutation_col).encode()))
         mutations_category = Counter(mutations_category)
         return mutations, mutations_category
 
-    # get the info of the project
-    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    sw_annotation = dbinfo.sw_annotation
-    gene_annotation = dbinfo.gene_annotation
-    samples = ast.literal_eval(dbinfo.samples)
-    default_col = ast.literal_eval(dbinfo.default_col)
-    mutation_col = dbinfo.mutation_col
-    groups = Groups.objects.filter(project_name__iexact=project_name)
-
-    # Get gene symbol from ensembl table
-    model_name_ensembl = "Gene" + gene_annotation
-    model_ensembl = apps.get_model(app_label=app_label,
-                                   model_name=model_name_ensembl)
-    gene_symbol = model_ensembl.objects.filter(ensgene__iexact=gene_ensgene).values('genename').distinct()[0]
-
-    # Eliminate all special character in samples for clumn visibility
-    # django converts CAPITAL in small letter
-    # 1. from "-" to "-"
-    samples = [sample.replace('-', '_') for sample in samples]
-    n_samples = dbinfo.n_samples()
-    model = apps.get_model(app_label=app_label,
-                           model_name=project_name)
-
     if request.method == "GET":
+
+        # get the info of the project
+        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+        sw_annotation = dbinfo.sw_annotation
+        gene_annotation = dbinfo.gene_annotation
+        samples = ast.literal_eval(dbinfo.samples)
+        default_col = ast.literal_eval(dbinfo.default_col)
+        mutation_col = dbinfo.mutation_col
+        groups = Groups.objects.filter(project_name__iexact=project_name)
+        type = "gene"
+
+        # Get gene symbol from ensembl table
+        model_name_ensembl = "Gene" + gene_annotation
+        model_ensembl = apps.get_model(app_label=app_label,
+                                    model_name=model_name_ensembl)
+        gene_symbol = model_ensembl.objects.filter(ensgene__iexact=gene_ensgene).values('genename').distinct()[0]
+
+        # Eliminate all special character in samples for clumn visibility
+        # django converts CAPITAL in small letter
+        # 1. from "-" to "-"
+        samples = [sample.replace('-', '_') for sample in samples]
+        model = apps.get_model(app_label=app_label,
+                            model_name=project_name)
+
+    
         # Samples pattern matching
         samples_col = samples
         # return HttpResponse(samples_col)
@@ -207,13 +194,13 @@ def display_gene_results(request, gene_ensgene, project_name):
             all_fields.append(f.name)
 
         # Get the mutation data
-        mutations, mutations_category = get_mutations(model, sw_annotation, mutation_col, gene_ensgene, project_db)
+        mutations, mutations_category = get_mutations(model, sw_annotation, mutation_col, 
+                                                     gene_ensgene, project_db)
 
         # Get data for plot
         # Get mutation categories
         category = [key.encode('ascii', 'ignore') for key in mutations_category.keys()]
         values = mutations_category.values()
-
         context = {'samples_col': samples_col,
                    'default_col': default_col,
                    'all_fields': all_fields,
@@ -225,21 +212,12 @@ def display_gene_results(request, gene_ensgene, project_name):
                    'type': type,
                    'groups': groups,
                    'project_name': project_name}
+
         return render(request, 'gene_results.html', context)
 
 
-@login_required(login_url="/login")
+@login_required
 def display_region_results(request, region, project_name):
-    check = "OK"
-    type = "region"
-
-    def check_region_format(region):
-        response = True
-        msg = "OK"
-        if len(region.split("-")) < 3:
-            response = False
-            msg = "Error in formatting region! CHR:start-end format is the only allowed"
-        return (response, msg)
 
     def get_mutations(model, sw_annotation, mutation_col, region, project_db):
         # Split region in CHR, START, END
@@ -256,27 +234,25 @@ def display_region_results(request, region, project_name):
         for m in mutations:
             mutations_category.append(getattr(m, mutation_col).encode())
 
-        mutations_category = Counter(mutations_category)
-        return mutations, mutations_category
-
-    # get the info of the project
-    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    sw_annotation = dbinfo.sw_annotation
-    gene_annotation = dbinfo.gene_annotation
-    samples = ast.literal_eval(dbinfo.samples)
-    default_col = ast.literal_eval(dbinfo.default_col)
-    mutation_col = dbinfo.mutation_col
-    groups = Groups.objects.filter(project_name__iexact=project_name)
-
-    # Eliminate all special character in samples for clumn visibility
-    # django converts CAPITAL in small letter
-    # 1. from "-" to "-"
-    samples = [sample.replace('-', '_') for sample in samples]
-    n_samples = dbinfo.n_samples()
-    model = apps.get_model(app_label=app_label,
-                           model_name=project_name)
+        return mutations, Counter(mutations_category)
 
     if request.method == "GET":
+        # get the info of the project
+        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+        sw_annotation = dbinfo.sw_annotation
+        samples = ast.literal_eval(dbinfo.samples)
+        default_col = ast.literal_eval(dbinfo.default_col)
+        mutation_col = dbinfo.mutation_col
+        groups = Groups.objects.filter(project_name__iexact=project_name)
+        type = "region"
+
+        # Eliminate all special character in samples for clumn visibility
+        # django converts CAPITAL in small letter
+        # 1. from "-" to "-"
+        samples = [sample.replace('-', '_') for sample in samples]
+        model = apps.get_model(app_label=app_label,
+                            model_name=project_name)
+    
         # Samples pattern matching
         samples_col = samples
         # return HttpResponse(samples_col)
@@ -309,8 +285,9 @@ def display_region_results(request, region, project_name):
         return render(request, 'gene_results.html', context)
 
 
-@login_required(login_url="/login")
+@login_required
 def display_variant_results(request, variant, project_name):
+
     def format_variant(variant):
         v = {}
         split_v = variant.split("-")
@@ -339,46 +316,32 @@ def display_variant_results(request, variant, project_name):
         d = Counter(l)
         return d
 
-    if request.method == 'GET':  # If the form has been submitted...
+    if request.method == 'GET': 
         # get the info of the project
         dbinfo = DbInfo.objects.filter(project_name=project_name).first()
         sw_annotation = dbinfo.sw_annotation
         gene_annotation = dbinfo.gene_annotation
         samples = ast.literal_eval(dbinfo.samples)
         assembly_version = dbinfo.assembly_version
-        default_col = ast.literal_eval(dbinfo.default_col)
         mutation_col = dbinfo.mutation_col
         n_samples = dbinfo.n_samples()
 
         # Get the gene field depending on annotation
-        if sw_annotation == "annovar":
-            gene_field = "gene_ensgene"
-        else:
-            gene_field = "gene"
-
+        gene_field = "gene_ensgene" if sw_annotation == "annovar" else "gene"
         v = format_variant(variant)
-
         model = apps.get_model(app_label=app_label,
                                model_name=project_name)
-
         model_name_ensembl = "Gene" + gene_annotation
         model_ensembl = apps.get_model(app_label=app_label,
                                        model_name=model_name_ensembl)
-
         mutations = get_mutations(model, v, project_db)
         csq = getattr(mutations, mutation_col)
-
-        # Workaround for "other" VCFs
-        if sw_annotation != "other":
-            ensgene_id = getattr(mutations, gene_field)
-            # To fix
-            # Example: in annovar annotation, 1:865628 G / A SAMD11
-            gene = model_ensembl.objects.filter(ensgene=ensgene_id).values("genename", "description").distinct()
-            # To fix: Multiple ENSGID in gene
-            # return HttpResponse(gene)
-        else:
-            ensgene_id = "Null"
-            gene = "Null"
+        ensgene_id = getattr(mutations, gene_field)
+        # To fix
+        # Example: in annovar annotation, 1:865628 G / A SAMD11
+        gene = model_ensembl.objects.filter(ensgene=ensgene_id).values("genename", "description").distinct()
+        # To fix: Multiple ENSGID in gene
+        # return HttpResponse(gene)
 
         if mutations == 0:
             context = {'q': variant,
@@ -711,7 +674,7 @@ def get_insilico_pred(request, variant, project_name):
 
 
 # settings: Get the COL_LIST FROM the DB
-@login_required(login_url="/login")
+@login_required
 def settings(request, project_name):
     msg_validate = "OK"
     groups = Groups.objects.filter(project_name__iexact=project_name)
@@ -860,9 +823,8 @@ def save_groups(request, project_name):
     return HttpResponse(context)
 
 
-@login_required(login_url="/login")
+@login_required
 def summary_statistics(request, project_name):
-    msg_validate = "OK"
 
     # Get the project model
     model_project = apps.get_model(app_label=app_label,
@@ -870,8 +832,6 @@ def summary_statistics(request, project_name):
 
     # Get DB INFO
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    # samples = ast.literal_eval(dbinfo.samples)
-    # samples = [sample.replace('-', '_').lower() for sample in samples]
 
     # Annotation sw
     sw_annotation = dbinfo.sw_annotation
@@ -882,53 +842,41 @@ def summary_statistics(request, project_name):
     # Get the number of mutation found
     n_mutations = model_project.objects.using(project_db).count()
 
+    msg_validate = "OK"
     context = {'project_name': project_name,
                'n_samples': n_samples,
                'sw_annotation': sw_annotation,
                'n_mutations': n_mutations,
                'msg_validate': msg_validate}
+
     return render(request, 'summary_statistics.html', context)
 
 
-def get_qual_vcf(request, project_name, cache):
-    # Cache key
-    cache_key = project_name + "/get_qual_vcf"
+def get_qual_vcf(request, project_name):
+    def np_encoder(object):
+        if isinstance(object, np.generic):
+            return object.item()
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label,
+                                    model_name=project_name)
 
-    if not cache.has_key(cache_key):
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
+    # Quality field
+    qual_field = "qual"
+    quals = model_project.objects.using(project_db).values_list(qual_field, flat=True)
+    qual_mean = np.round(np.mean(quals), 3)
+    quals = np.round(np.log10(quals), 3)
 
-        # Quality field
-        qual_field = "qual"
-        quals = model_project.objects.using(project_db).values_list(qual_field, flat=True)
+    # Get bin and values
+    qual_data, qual_bins = np.histogram(quals, bins="auto")
+    qual_bins = np.round(np.power(qual_bins, 10), 3)
 
-        qual_median = np.median(quals)
-        qual_mean = np.mean(quals)
-
-        quals = np.log10(quals)
-
-        # Get bin and values
-        qual_data, qual_bins = np.histogram(quals, bins="auto")
-        qual_bins = np.power(qual_bins, 10)
-
-        # Generate qual_data array
-        data = []
-        for i in range(0, len(qual_data) - 1):
-            tmp = [qual_bins[i], qual_data[i]]
-            data.append(tmp)
-
-        cache[cache_key] = json.dumps({'qual_data': data,
-                                       'qual_mean': qual_mean,
-                                       'cache': cache})
-
-    context = cache[cache_key]
-    return HttpResponse(context)
+    # Generate qual_data array
+    data = list(zip(qual_bins.tolist(), qual_data.tolist()))
+    
+    return JsonResponse({'qual_data': data, 'qual_mean': qual_mean}, status=200)
 
 
-def get_mean_variations(request, project_name, cache):
-    # Cache key
-    cache_key = project_name + "/get_mean_variations"
+def get_mean_variations(request, project_name):
 
     def is_outlier(value, p25, p75):
         """Check if value is an outlier
@@ -937,237 +885,186 @@ def get_mean_variations(request, project_name, cache):
         upper = p75 + 1.5 * (p75 - p25)
         return value <= lower or value >= upper
 
-    if not cache.has_key(cache_key):
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
-        # Get dbinfo
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-        samples = ast.literal_eval(dbinfo.samples)
-        samples = [sample.replace('-', '_').lower() for sample in samples]
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label,
+                                    model_name=project_name)
+    # Get dbinfo
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    samples = ast.literal_eval(dbinfo.samples)
+    samples = [sample.replace('-', '_').lower() for sample in samples]
 
-        var_samples = []
-        for sample in samples:
-            value = 0
-            search_type = "gt"
-            filter_string = sample + "__" + search_type
-            value = model_project.objects.using(project_db).filter(**{filter_string: 0}).count()
-            # value = res.count()
-            var_samples.append(value)
+    var_samples = []
+    for sample in samples:
+        search_type = "gt"
+        filter_string = sample + "__" + search_type
+        value = model_project.objects.using(project_db).filter(**{filter_string: 0}).count()
+        var_samples.append(value)
 
-        # Since highchart DRAW only values without calculate anything:
-        # I will calculate all the stats in this function
-        x = project_name
-        mut_q1 = np.percentile(var_samples, 25)
-        mut_q3 = np.percentile(var_samples, 75)
+    # Since highchart DRAW only values without calculate anything:
+    x = project_name
+    mut_q1 = np.percentile(var_samples, 25)
+    mut_q3 = np.percentile(var_samples, 75)
 
-        # Add data to the boxplot and outlier_data array
-        boxplot_values = []
-        outlier_data = []
-        for val in var_samples:
-            if is_outlier(val, mut_q1, mut_q3):
-                outlier = [0, val]
-                outlier_data.append(outlier)
-            else:
-                boxplot_values.append(val)
-
-        # Calculate statistics
-        mut_min = min(boxplot_values)
-        mut_max = max(boxplot_values)
-        mut_median = np.median(var_samples)
-
-        # Generate boxplot_data array
-        boxplot_data = []
-        boxplot_data.extend([x,
-                             mut_min,
-                             mut_q1,
-                             mut_median,
-                             mut_q3,
-                             mut_max])
-
-        cache[cache_key] = json.dumps({'boxplot_data': boxplot_data,
-                                       'outlier_data': outlier_data,
-                                       'cache': cache})
-
-    context = cache[cache_key]
-    return HttpResponse(context)
-
-
-def get_chr_variations(request, project_name, cache):
-    # Cache key
-    cache_key = project_name + "/get_chr_variations"
-
-    if not cache.has_key(cache_key):
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
-
-        # Get DB INFO
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-        # Chromosome column
-        chr_col = "chrom"
-        # Consequence column
-        mutation_col = dbinfo.get_mutation_col()
-
-        # Get chrom list
-        chromosomes = model_project.objects.using(project_db).values_list(chr_col, flat=True).distinct()
-        # Get function list
-        functions = model_project.objects.using(project_db).values_list(mutation_col, flat=True).distinct()
-        # Get the summary count of the mutation by chr
-        chr_summary = Counter(model_project.objects.using(project_db).values_list(chr_col, mutation_col))
-
-        # Format data for Highcharts --> BAR CHART
-        # Categories = Chromosomes
-        # Get the data
-        tmp_plot_data = {}
-        for func in functions:
-            for chr in chromosomes:
-                data = chr_summary[chr, func]
-                if tmp_plot_data.has_key(func):
-                    tmp_plot_data[func].append(data)
-                else:
-                    tmp_plot_data[func] = [data]
-
-        number_of_categories = 15
-        keys = OrderedDict(sorted(tmp_plot_data.items(), key=lambda t: -sum(t[1]))).keys()[:number_of_categories]
-        plot_data = {}
-        for k in keys:
-            plot_data[k] = tmp_plot_data[k]
-
-        cache[cache_key] = json.dumps({'chromosomes': list(chromosomes),
-                                       'plot_data': plot_data,
-                                       'cache': cache})
-    context = cache[cache_key]
-    return HttpResponse(context)
-
-
-def get_biotype_variations(request, project_name, cache):
-    # Cache key
-    cache_key = project_name + "/get_biotype_variations"
-
-    if not cache.has_key(cache_key):
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
-
-        # Get DB INFO
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-
-        # Get sw annotation
-        sw_annotation = dbinfo.sw_annotation
-
-        # Biotype column
-        biotype_col = ""
-        if sw_annotation == "vep":
-            biotype_col = "biotype"
+    # Add data to the boxplot and outlier_data array
+    boxplot_values = []
+    outlier_data = []
+    for val in var_samples:
+        if is_outlier(val, mut_q1, mut_q3):
+            outlier = [0, val]
+            outlier_data.append(outlier)
         else:
-            biotype_col = "func_ensgene"
+            boxplot_values.append(val)
 
-        # Get the summary count of the mutation by type
-        biotype_summary = Counter(model_project.objects.using(project_db).values_list(biotype_col, flat=True))
-        mutation_type_summary_sorted = OrderedDict(sorted(biotype_summary.items(), key=lambda t: -t[1]))
+    # Calculate statistics
+    mut_min = min(boxplot_values)
+    mut_max = max(boxplot_values)
+    mut_median = np.median(var_samples)
 
-        # Format data for Highcharts --> PIE CHART
-        plot_data = []
-        for type in mutation_type_summary_sorted.keys():
-            data = [str(type), mutation_type_summary_sorted[type]]
-            plot_data.append(data)
+    # Generate boxplot_data array
+    boxplot_data = []
+    boxplot_data.extend([x, mut_min, mut_q1, mut_median, mut_q3, mut_max])
 
-        cache[cache_key] = json.dumps({'plot_data': plot_data,
-                                       'cache': cache})
-    context = cache[cache_key]
-    return HttpResponse(context)
+    return JsonResponse({'boxplot_data': boxplot_data,
+                         'outlier_data': outlier_data}, status=200)
 
 
-def get_exonictype_variations(request, project_name, cache):
-    # Cache key
-    cache_key = project_name + "/get_exonictype_variations"
+def get_chr_variations(request, project_name):
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
-    if not cache.has_key(cache_key):
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
+    # Get DB INFO
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
 
-        # Get DB INFO
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    # Chromosome column
+    chr_col = "chrom"
 
-        # Consequence column
-        mutation_col = dbinfo.get_mutation_col()
+    # Consequence column
+    mutation_col = dbinfo.get_mutation_col()
 
-        # Get the summary count of the mutation by type
-        mutation_type_summary = Counter(model_project.objects.using(project_db).values_list(mutation_col, flat=True))
-        mutation_type_summary_sorted = OrderedDict(sorted(mutation_type_summary.items(), key=lambda t: -t[1]))
+    # Get chrom list
+    chromosomes = model_project.objects.using(project_db).values_list(chr_col, flat=True).distinct()
 
-        # Format data for Highcharts --> PIE CHART
-        plot_data = []
-        for type in mutation_type_summary_sorted.keys():
-            data = [str(type), mutation_type_summary_sorted[type]]
-            plot_data.append(data)
+    # Get function list
+    functions = model_project.objects.using(project_db).values_list(mutation_col, flat=True).distinct()
 
-        cache[cache_key] = json.dumps({'plot_data': plot_data,
-                                       'cache': cache})
-    context = cache[cache_key]
-    return HttpResponse(context)
+    # Get the summary count of the mutation by chr
+    chr_summary = Counter(model_project.objects.using(project_db).values_list(chr_col, mutation_col))
+
+    # The idea is to obtain a list of mutational counts for the top 15 effects for each chromosome
+    # TODO this could be done in a much simpler and efficient way
+    tmp_plot_data = defaultdict(list)
+    for func in functions:
+        for chr in chromosomes:
+            data = chr_summary[(chr, func,)]
+            tmp_plot_data[func].append(data)
+    number_of_categories = 15
+    top_funcs = [x[0] for x in sorted(tmp_plot_data.items(), key=lambda t: -sum(t[1]))[:number_of_categories]]
+    plot_data = {func:tmp_plot_data[func] for func in top_funcs}
+
+    return JsonResponse({'chromosomes': list(chromosomes),
+                         'plot_data': plot_data}, status=200)
 
 
-def get_top_genes(request, project_name, cache):
+
+def get_biotype_variations(request, project_name):
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
+
+    # Get DB INFO
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+
+    # Get sw annotation
+    sw_annotation = dbinfo.sw_annotation
+
+    # Biotype column
+    biotype_col = "biotype" if sw_annotation == "vep" else "func_ensgene"
+    
+    # Get the summary count of the mutation by type
+    biotype_summary = Counter(model_project.objects.using(project_db).values_list(biotype_col, flat=True))
+    mutation_type_summary_sorted = OrderedDict(sorted(biotype_summary.items(), key=lambda t: -t[1]))
+
+    # Format data for Highcharts --> PIE CHART
+    plot_data = []
+    for type in mutation_type_summary_sorted.keys():
+        data = [str(type), mutation_type_summary_sorted[type]]
+        plot_data.append(data)
+
+    return JsonResponse({'plot_data': plot_data}, status=200)
+
+
+def get_exonictype_variations(request, project_name):
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label,
+                                   model_name=project_name)
+
+    # Get DB INFO
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+
+    # Consequence column
+    mutation_col = dbinfo.get_mutation_col()
+
+    # Get the summary count of the mutation by type
+    mutation_type_summary = Counter(model_project.objects.using(project_db).values_list(mutation_col, flat=True))
+    mutation_type_summary_sorted = OrderedDict(sorted(mutation_type_summary.items(), key=lambda t: -t[1]))
+
+    # Format data for Highcharts --> PIE CHART
+    plot_data = []
+    for type in mutation_type_summary_sorted.keys():
+        data = [str(type), mutation_type_summary_sorted[type]]
+        plot_data.append(data)
+
+    return JsonResponse({'plot_data': plot_data}, status=200)
+
+
+def get_top_genes(request, project_name):
     # N genes to display
     n_genes = 20
     n_categories = 5
-    # Cache key
-    cache_key = project_name + "/get_top_genes"
 
-    if not cache.has_key(cache_key):
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
-        # Get DB INFO
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
-        # Get sw annotation
-        sw_annotation = dbinfo.sw_annotation
+    # Get DB INFO
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
 
-        # Consequence column
-        mutation_col = dbinfo.get_mutation_col()
+    # Get sw annotation
+    sw_annotation = dbinfo.sw_annotation
 
-        # Get ENSGENE ID based on annotation sw
-        if sw_annotation == "vep":
-            gene_col = "gene"
-        else:
-            gene_col = "gene_ensgene"
+    # Consequence column
+    mutation_col = dbinfo.get_mutation_col()
 
-        # Get data
-        # Get the gene list
-        res_genes = Counter(model_project.objects.using(project_db).all().values_list(gene_col, flat=True))
-        # Get the first n_genes
-        # Categories = top_genes
-        top_genes = OrderedDict(sorted(res_genes.items(), key=lambda t: -t[1])).keys()[:n_genes]
+    # Get ENSGENE ID based on annotation sw
+    gene_col = "gene" if sw_annotation == "vep" else "gene_ensgene"
 
-        # Get function list
-        search_type = "in"
-        filter_string = gene_col + "__" + search_type
-        res_functions = Counter(
-            model_project.objects.using(project_db).filter(**{filter_string: top_genes}).values_list(mutation_col,
-                                                                                                     flat=True))
-        # Get the first n_categories
-        functions = OrderedDict(sorted(res_functions.items(), key=lambda t: -t[1])).keys()[:n_categories]
+    # Get the gene list
+    res_genes = Counter(model_project.objects.using(project_db).all().values_list(gene_col, flat=True))
 
-        # Get the plot data
-        plot_data = {}
-        for func in functions:
-            for gene in top_genes:
-                data = model_project.objects.using(project_db).filter(**{gene_col: gene}).filter(
-                    **{mutation_col: func}).count()
-                if plot_data.has_key(func):
-                    plot_data[func].append(data)
-                else:
-                    plot_data[func] = [data]
+    # Get the first n_genes
+    # Categories = top_genes
+    top_genes = OrderedDict(sorted(res_genes.items(), key=lambda t: -t[1])).keys()[:n_genes]
 
-        cache[cache_key] = json.dumps({'top_genes': list(top_genes),
-                                       'plot_data': plot_data,
-                                       'cache': cache})
-    context = cache[cache_key]
-    return HttpResponse(context)
+    # Get function list
+    search_type = "in"
+    filter_string = gene_col + "__" + search_type
+    res_functions = Counter(
+        model_project.objects.using(project_db).filter(**{filter_string: top_genes}).values_list(mutation_col,
+                                                                                                    flat=True))
+    # Get the first n_categories
+    functions = OrderedDict(sorted(res_functions.items(), key=lambda t: -t[1])).keys()[:n_categories]
+
+    # Get the plot data
+    plot_data = {}
+    for func in functions:
+        for gene in top_genes:
+            data = model_project.objects.using(project_db).filter(**{gene_col: gene}).filter(
+                **{mutation_col: func}).count()
+            if plot_data.has_key(func):
+                plot_data[func].append(data)
+            else:
+                plot_data[func] = [data]
+
+    return JsonResponse({'top_genes': list(top_genes),
+                         'plot_data': plot_data}, status=200)
 
 
 def plink_gene(request, project_name, gene_ensgene):
@@ -1175,20 +1072,15 @@ def plink_gene(request, project_name, gene_ensgene):
         # return the mutations and default_col of a particular gene based on the sw_annotation
         if sw_annotation == "annovar":
             # exact match
-            mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
-        else:
-            # exact match
-            mutations = model.objects.using(project_db).filter(gene__iexact=ensgene)
-        return mutations
+            return model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
+        return model.objects.using(project_db).filter(gene__iexact=ensgene)
 
     # get the info of the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     sw_annotation = dbinfo.sw_annotation
     samples = ast.literal_eval(dbinfo.samples)
-
     model = apps.get_model(app_label=app_label,
                            model_name=project_name)
-
     mutations = get_mutations_plink(model, sw_annotation, gene_ensgene, project_db)
 
     # generate PED/MAP string
@@ -1198,7 +1090,6 @@ def plink_gene(request, project_name, gene_ensgene):
     #    Marker ID
     #    Genetic distance
     #    Physical position
-
     map = ""
     ped = ""
     for m in mutations:
@@ -1243,19 +1134,14 @@ def plink_region(request, project_name, region):
         chr = r[0]
         start = r[1]
         end = r[2]
-
         # return the mutations of a region
-        mutations = model.objects.using(project_db).filter(chrom=chr).filter(pos__range=[start, end])
-
-        return mutations
+        return model.objects.using(project_db).filter(chrom=chr).filter(pos__range=[start, end])
 
     # get the info of the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     samples = ast.literal_eval(dbinfo.samples)
-
     model = apps.get_model(app_label=app_label,
                            model_name=project_name)
-
     mutations = get_mutations_plink(model, region, project_db)
 
     # generate PED/MAP string

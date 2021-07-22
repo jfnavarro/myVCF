@@ -20,9 +20,9 @@
                     'project_name' : '{{ project_name }}'},
             // handle a successful response
             success : function(obj) {
-                var res = JSON.parse(obj)
+                var res = obj;
                 var chart = $('#vcf_summary_body').highcharts();
-                var visible_value = ""
+                var visible_value = "";
                 // Add quality values
                 chart.addSeries({
                     name: "Number of variants",
@@ -48,13 +48,11 @@
                     id: 'plot-line-mean'
                 });
                 chart.hideLoading('Loading...');
-                //console.log(obj);
-                //console.log(res);
-                console.log("Qual var: OK!"); // another sanity check
+                console.log("Qual var: OK!");
             },
             // handle a non-successful response
-            error : function(xhr,errmsg,err) {
-                console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
+            error : function(xhr, errmsg, err) {
+                console.log(xhr.status + ": " + xhr.responseText);
             }
         });
     }
@@ -67,7 +65,8 @@
                     'project_name' : '{{ project_name }}'},
             // handle a successful response
             success : function(obj) {
-                var res = JSON.parse(obj)
+                //var res = JSON.parse(obj);
+                var res = obj;
                 var boxplot_chart = $('#mutation_boxplot_body').highcharts();
                 boxplot_chart.xAxis[0].setCategories('#',true);
                 boxplot_chart.addSeries({
@@ -89,9 +88,7 @@
                     }
                 });
                 boxplot_chart.hideLoading('Loading...');
-                //console.log(obj);
-                //console.log(res.boxplot_data);
-                console.log("Mean_var: OK!"); // another sanity check
+                console.log("Mean_var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -108,7 +105,8 @@
                     'project_name' : '{{ project_name }}'},
             // handle a successful response
             success : function(obj) {
-                var res = JSON.parse(obj)
+                //var res = JSON.parse(obj);
+                var res = obj;
                 var chart = $('#mutation_chr_body').highcharts();
                 var visible_value = ""
                 chart.xAxis[0].setCategories(res.chromosomes);
@@ -119,9 +117,7 @@
                     });
                 });
                 chart.hideLoading('Loading...');
-                //console.log(obj);
-                //console.log(res);
-                console.log("Chr var: OK!"); // another sanity check
+                console.log("Chr var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -139,12 +135,11 @@
                     'project_name' : '{{ project_name }}'},
             // handle a successful response
             success : function(obj) {
-                var res = JSON.parse(obj)
+                var res = obj;
                 var chart = $('#mutation_biotype_body').highcharts();
                 chart.series[0].setData(res.plot_data);
                 chart.hideLoading('Loading...');
-                //console.log(obj);
-                console.log("Biotype var: OK!"); // another sanity check
+                console.log("Biotype var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -162,12 +157,11 @@
                     'project_name' : '{{ project_name }}'},
             // handle a successful response
             success : function(obj) {
-                var res = JSON.parse(obj)
+                var res = obj;
                 var chart = $('#mutation_exonictype_body').highcharts();
                 chart.series[0].setData(res.plot_data);
                 chart.hideLoading('Loading...');
-                //console.log(obj);
-                console.log("Exonic var: OK!"); // another sanity check
+                console.log("Exonic var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -184,7 +178,7 @@
                     'project_name' : '{{ project_name }}'},
             // handle a successful response
             success : function(obj) {
-                var res = JSON.parse(obj)
+                var res = obj;
                 var chart = $('#top_genes_body').highcharts();
                 chart.xAxis[0].setCategories(res.top_genes);
                 $.each(res.plot_data, function( key, value ) {
@@ -194,9 +188,7 @@
                     });
                 });
                 chart.hideLoading('Loading...');
-                //console.log(obj);
-                //console.log(res);
-                console.log("Top Genes: OK!"); // another sanity check
+                console.log("Top Genes: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -463,8 +455,8 @@
     <div class="header clearfix">
         <nav>
             <ul class="nav nav-pills pull-right">
-                <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Home</a></li>
-                <li role="presentation"><a href="/">myVCF Page</a></li>
+                <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Main</a></li>
+                <li role="presentation"><a href="/">Home</a></li>
             </ul>
         </nav>
         <h3 class="text-muted">{{ project_name }}</h3>
@@ -501,17 +493,15 @@
             </tbody>
         </table>
     </div>
+    
     <div class="col-md-1">
     </div>
         <div class="panel panel-default col-md-6">
-        <div id="mutation_boxplot_heading" class="panel-heading">
-            <a data-toggle="collapse" data-target="#mutation_boxplot">Number of variations across samples</a>
-        </div>
-        <div id="mutation_boxplot" class="panel-collapse collapse in">
-            <div id="mutation_boxplot_body" class="panel-body"></div>
-        </div>
+
     </div>
+    
     <div class="row col-md-12"></div>
+
     <div class="row col-md-12">
         <div class="page-header">
             <a data-toggle="collapse" data-target="#vcf_summary_box">
@@ -519,6 +509,7 @@
             </a>
         </div>
     </div>
+
     <div id=vcf_summary_box class="panel panel-default panel-collapse collapse in col-md-6">
         <div id="vcf_summary_heading" class="panel-heading">
             <a data-toggle="collapse" data-target="#vcf_summary">Quality summary</a>
@@ -526,7 +517,22 @@
         <div id="vcf_summary" class="panel-collapse collapse in">
             <div id="vcf_summary_body" class="panel-body">Plot Content</div>
         </div>
+
+        <div id="mutation_boxplot_heading" class="panel-heading">
+            <a data-toggle="collapse" data-target="#mutation_boxplot">Number of variations across samples</a>
+        </div>
+        <div id="mutation_boxplot" class="panel-collapse collapse in">
+            <div id="mutation_boxplot_body" class="panel-body">Plot Content</div>
+        </div>
+
+        <div id="mutation_genes_heading" class="panel-heading">
+            <a data-toggle="collapse" data-target="#mutation_genes">Top Genes</a>
+        </div>
+        <div id="mutation_genes" class="panel-collapse collapse in">
+            <div id="top_genes_body" class="panel-body">Plot Content</div>
+        </div>
     </div>
+
     <div class="row col-md-12">
         <div class="page-header">
              <a data-toggle="collapse" data-target="#mutation_summary_box">
@@ -534,43 +540,37 @@
              </a>
         </div>
     </div>
+    
     <div id="mutation_summary_box" class="panel-collapse collapse in">
-    <div class="panel panel-default col-md-12">
-        <div id="mutation_chr_heading" class="panel-heading">
-            <a data-toggle="collapse" data-target="#mutation_chr">Mutations distribution: by Chromosome</a>
+        <div class="panel panel-default col-md-12">
+            <div id="mutation_chr_heading" class="panel-heading">
+                <a data-toggle="collapse" data-target="#mutation_chr">Mutations distribution: by Chromosome</a>
+            </div>
+            <div id="mutation_chr" class="panel-collapse collapse in">
+                <div id="mutation_chr_body" class="panel-body">Plot Content</div>
+            </div>
         </div>
-        <div id="mutation_chr" class="panel-collapse collapse in">
-            <div id="mutation_chr_body" class="panel-body">Plot Content</div>
+
+        <div class="panel panel-default col-md-12">
+            <div id="mutation_exonictype_heading" class="panel-heading">
+                <a data-toggle="collapse" data-target="#mutation_exonictype">Mutations distribution: by Exonic Type</a>
+            </div>
+            <div id="mutation_exonictype" class="panel-collapse collapse in">
+                <div id="mutation_exonictype_body" class="panel-body">Plot Content</div>
+            </div>
         </div>
-    </div>
-    {% if sw_annotation != "other" %}
-    <div class="panel panel-default col-md-12">
-        <div id="mutation_biotype_heading" class="panel-heading">
-            <a data-toggle="collapse" data-target="#mutation_biotype">Mutations distribution: Gene biotype</a>
+
+        <div class="panel panel-default col-md-12">
+            <div id="mutation_biotype_heading" class="panel-heading">
+                <a data-toggle="collapse" data-target="#mutation_biotype">Mutations distribution: by BioType</a>
+            </div>
+            <div id="mutation_biotype" class="panel-collapse collapse in">
+                <div id="mutation_biotype_body" class="panel-body">Plot Content</div>
+            </div>
         </div>
-        <div id="mutation_biotype" class="panel-collapse collapse in">
-            <div id="mutation_biotype_body" class="panel-body">Plot Content 2</div>
-        </div>
-    </div>
-    <div class="panel panel-default col-md-12">
-        <div id="mutation_exonictype_heading" class="panel-heading">
-            <a data-toggle="collapse" data-target="#mutation_exonictype">Mutations distribution: Functional consequence</a>
-        </div>
-        <div id="mutation_exonictype" class="panel-collapse collapse in">
-            <div id="mutation_exonictype_body" class="panel-body">Large Plot Content</div>
-        </div>
+
     </div>
 
-    <div class="panel panel-default col-md-12">
-        <div id="top_genes_heading" class="panel-heading">
-            <a data-toggle="collapse" data-target="#top_genes">Top mutated genes plot</a>
-        </div>
-        <div id="top_genes" class="panel-collapse collapse in">
-            <div id="top_genes_body" class="panel-body">Large Plot Content</div>
-        </div>
-    </div>
-    {% endif %}
-    </div>
 </div>
 
 {% endblock %}
