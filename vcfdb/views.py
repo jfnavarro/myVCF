@@ -78,359 +78,267 @@ def search(request, project_name):
     def get_dbsnp_record(query, model_project):
         return model_project.objects.using(project_db).filter(rs_id=query)
 
-    # If the form has been submitted...
-    if request.method == 'GET':
-        query = request.GET['q']
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-        gene_annotation = dbinfo.gene_annotation
-        sw_annotation = dbinfo.sw_annotation
+    # Parse request
+    query = request.GET['q']
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    gene_annotation = dbinfo.gene_annotation
+    sw_annotation = dbinfo.sw_annotation
 
-        # Get the project model
-        model_project = apps.get_model(app_label=app_label,
-                                       model_name=project_name)
+    # Get the project model
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
-        # Define the query: Region or Gene?
-        if is_region(query):
-            region_query = split_region(query)
-            return HttpResponseRedirect('/vcfdb/%s/region/%s' % (project_name, region_query))
-        elif is_dbsnp(query):
-            results = get_dbsnp_record(query, model_project)
-            if sw_annotation == "vep":
-                gene_symbol_col = "symbol"
-                ensgene_id_col = "gene"
-            else:
-                gene_symbol_col = "gene_refgene"
-                ensgene_id_col = "gene_ensgene"
-            context = {'query': query,
-                       'results': results,
-                       'ensgene_id_col': ensgene_id_col,
-                       'gene_symbol_col': gene_symbol_col,
-                       'project_name': project_name}
-            return render(request, 'search_variant.html', context)
-        elif is_variant(query):
-            # Remove whitespaces
-            query = query.replace(" ", "")
-            return HttpResponseRedirect('/vcfdb/%s/variant/%s' % (project_name, query))
+    # Define the query: Region or Gene?
+    if is_region(query):
+        region_query = split_region(query)
+        return HttpResponseRedirect('/vcfdb/%s/region/%s' % (project_name, region_query))
+    elif is_dbsnp(query):
+        results = get_dbsnp_record(query, model_project)
+        if sw_annotation == "vep":
+            gene_symbol_col = "symbol"
+            ensgene_id_col = "gene"
         else:
-            # Get the ENSEMBL model
-            model_name_ensembl = "Gene" + gene_annotation
-            model_ensembl = apps.get_model(app_label=app_label,
-                                           model_name=model_name_ensembl)
+            gene_symbol_col = "gene_refgene"
+            ensgene_id_col = "gene_ensgene"
+        context = {'query': query,
+                    'results': results,
+                    'ensgene_id_col': ensgene_id_col,
+                    'gene_symbol_col': gene_symbol_col,
+                    'project_name': project_name}
+        return render(request, 'search_variant.html', context)
+    elif is_variant(query):
+        # Remove whitespaces
+        query = query.replace(" ", "")
+        return HttpResponseRedirect('/vcfdb/%s/variant/%s' % (project_name, query))
+    else:
+        # Get the ENSEMBL model
+        model_name_ensembl = "Gene" + gene_annotation
+        model_ensembl = apps.get_model(app_label=app_label, model_name=model_name_ensembl)
+        # TODO this may not work for Annovar
+        results = model_ensembl.objects.filter(genename__icontains=query).values('ensgene', 
+                                                                                 'genename',
+                                                                                 'description').distinct()
 
-            results = model_ensembl.objects.filter(genename__icontains=query).values('ensgene', 
-                                                                                     'genename',
-                                                                                     'description').distinct()
+        # Get mutation count for each ENSGENE
+        # Build a new dictionary which contains EnsembleGeneID, description, Genename and mutation count
+        # final_results is the merged dictionary
+        final_results = []
+        for res in results:
+            ensgene_id = res['ensgene']
+            if sw_annotation == "annovar":
+                count = model_project.objects.using(project_db).filter(gene_ensgene__iexact=ensgene_id).count()
+            else:
+                count = model_project.objects.using(project_db).filter(gene__iexact=ensgene_id).count()
+            res['mut_count'] = count
+            final_results.append(res)
 
-            # Get mutation count for each ENSGENE
-            # Build a new dictionary which contains EnsembleGeneID, description, Genename and mutation count
-            # final_results is the merged dictionary
-            final_results = []
-            for res in results:
-                ensgene_id = res['ensgene']
-                if sw_annotation == "annovar":
-                    count = model_project.objects.using(project_db).filter(gene_ensgene__iexact=ensgene_id).count()
-                else:
-                    count = model_project.objects.using(project_db).filter(gene__iexact=ensgene_id).count()
-                res['mut_count'] = count
-                final_results.append(res)
-
-            # json_results = serializers.serialize('json', results)
-            # values = results.values()
-            context = {'query': query,
-                       'results': final_results,
-                       'project_name': project_name}
-            return render(request, 'search.html', context)
+        # Send results back
+        context = {'query': query,
+                    'results': final_results,
+                    'project_name': project_name}
+        return render(request, 'search.html', context)
 
 
 @login_required
 def display_gene_results(request, gene_ensgene, project_name):
 
-    def get_mutations(model, sw_annotation, mutation_col, ensgene, project_db):
-        # return the mutations and default_col of a particular gene based on the sw_annotation
-        mutations_category = []
-        if sw_annotation == "annovar":
-            # exact match
-            mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
-        else:
-            # exact match
-            mutations = model.objects.using(project_db).filter(gene__iexact=ensgene)
-        for m in mutations:
-            mutations_category.append(str(getattr(m, mutation_col).encode()))
-        mutations_category = Counter(mutations_category)
-        return mutations, mutations_category
+    # get the info of the project
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    sw_annotation = dbinfo.sw_annotation
+    gene_annotation = dbinfo.gene_annotation
+    samples = ast.literal_eval(dbinfo.samples)
+    default_col = ast.literal_eval(dbinfo.default_col)
+    mutation_col = dbinfo.mutation_col
+    groups = Groups.objects.filter(project_name__iexact=project_name)
+    type = "gene"
 
-    if request.method == "GET":
+    # Get gene symbol from ensembl table
+    model_name_ensembl = "Gene" + gene_annotation
+    model_ensembl = apps.get_model(app_label=app_label, model_name=model_name_ensembl)
+    gene_symbol = model_ensembl.objects.filter(ensgene__iexact=gene_ensgene).values('genename').distinct()[0]
 
-        # get the info of the project
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-        sw_annotation = dbinfo.sw_annotation
-        gene_annotation = dbinfo.gene_annotation
-        samples = ast.literal_eval(dbinfo.samples)
-        default_col = ast.literal_eval(dbinfo.default_col)
-        mutation_col = dbinfo.mutation_col
-        groups = Groups.objects.filter(project_name__iexact=project_name)
-        type = "gene"
+    # Django converts characters
+    samples = [sample.replace('-', '_') for sample in samples]
+    model = apps.get_model(app_label=app_label, model_name=project_name)
 
-        # Get gene symbol from ensembl table
-        model_name_ensembl = "Gene" + gene_annotation
-        model_ensembl = apps.get_model(app_label=app_label,
-                                    model_name=model_name_ensembl)
-        gene_symbol = model_ensembl.objects.filter(ensgene__iexact=gene_ensgene).values('genename').distinct()[0]
+    # Samples pattern matching
+    samples_col = samples
 
-        # Eliminate all special character in samples for clumn visibility
-        # django converts CAPITAL in small letter
-        # 1. from "-" to "-"
-        samples = [sample.replace('-', '_') for sample in samples]
-        model = apps.get_model(app_label=app_label,
-                            model_name=project_name)
+    # Get fields
+    all_fields = [f.name for f in model._meta.get_fields()]
 
-    
-        # Samples pattern matching
-        samples_col = samples
-        # return HttpResponse(samples_col)
-        # Get header
-        all_fields = []
-        for f in model._meta.get_fields():
-            all_fields.append(f.name)
+    # Get the mutation data
+    if sw_annotation == "annovar":
+        # exact match
+        mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=gene_ensgene)
+    else:
+        # exact match
+        mutations = model.objects.using(project_db).filter(gene__iexact=gene_ensgene)
+    mutations_category = Counter([getattr(m, mutation_col).encode() for m in mutations])
 
-        # Get the mutation data
-        mutations, mutations_category = get_mutations(model, sw_annotation, mutation_col, 
-                                                     gene_ensgene, project_db)
+    # Get mutation categories
+    category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
+    context = {'samples_col': samples_col,
+                'default_col': default_col,
+                'all_fields': all_fields,
+                'query': gene_ensgene,
+                'gene_symbol': gene_symbol,
+                'mutations': mutations,
+                'category': category,
+                'values': list(mutations_category.values()),
+                'type': type,
+                'groups': groups,
+                'project_name': project_name}
 
-        # Get data for plot
-        # Get mutation categories
-        category = [key.encode('ascii', 'ignore') for key in mutations_category.keys()]
-        values = mutations_category.values()
-        context = {'samples_col': samples_col,
-                   'default_col': default_col,
-                   'all_fields': all_fields,
-                   'query': gene_ensgene,
-                   'gene_symbol': gene_symbol,
-                   'mutations': mutations,
-                   'category': category,
-                   'values': values,
-                   'type': type,
-                   'groups': groups,
-                   'project_name': project_name}
-
-        return render(request, 'gene_results.html', context)
+    return render(request, 'gene_results.html', context)
 
 
 @login_required
 def display_region_results(request, region, project_name):
 
-    def get_mutations(model, sw_annotation, mutation_col, region, project_db):
-        # Split region in CHR, START, END
-        r = region.split("-")
-        chr = r[0]
-        start = r[1]
-        end = r[2]
+    # get the info of the project
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    sw_annotation = dbinfo.sw_annotation
+    samples = ast.literal_eval(dbinfo.samples)
+    default_col = ast.literal_eval(dbinfo.default_col)
+    mutation_col = dbinfo.mutation_col
+    groups = Groups.objects.filter(project_name__iexact=project_name)
+    type = "region"
 
-        # return the mutations and default_col of a region
-        mutations_category = []
-        mutations = model.objects.using(project_db).filter(chrom=chr).filter(pos__range=[start, end])
+    # Django converts characters
+    samples = [sample.replace('-', '_') for sample in samples]
+    model = apps.get_model(app_label=app_label, model_name=project_name)
 
-        # Extract region category for chart plot
-        for m in mutations:
-            mutations_category.append(getattr(m, mutation_col).encode())
+    # Get fields
+    all_fields = [f.name for f in model._meta.get_fields()]
 
-        return mutations, Counter(mutations_category)
+    # Get the mutation data
+    # Split region in CHR, START, END
+    chr, start, end = region.split("-")
 
-    if request.method == "GET":
-        # get the info of the project
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-        sw_annotation = dbinfo.sw_annotation
-        samples = ast.literal_eval(dbinfo.samples)
-        default_col = ast.literal_eval(dbinfo.default_col)
-        mutation_col = dbinfo.mutation_col
-        groups = Groups.objects.filter(project_name__iexact=project_name)
-        type = "region"
+    # Get the mutations and default_col of a region
+    mutations = model.objects.using(project_db).filter(chrom=chr).filter(pos__range=[start, end])
+    mutations_category = Counter([getattr(m, mutation_col).encode() for m in mutations])
 
-        # Eliminate all special character in samples for clumn visibility
-        # django converts CAPITAL in small letter
-        # 1. from "-" to "-"
-        samples = [sample.replace('-', '_') for sample in samples]
-        model = apps.get_model(app_label=app_label,
-                            model_name=project_name)
-    
-        # Samples pattern matching
-        samples_col = samples
-        # return HttpResponse(samples_col)
-        # Get header
-        all_fields = []
-        for f in model._meta.get_fields():
-            all_fields.append(f.name)
+    # Get mutation categories
+    category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
 
-        # Get the mutation data
-        mutations, mutations_category = get_mutations(model, sw_annotation, mutation_col, region, project_db)
-
-        # Get data for plot
-        # Get mutation categories
-        category = [key.encode('ascii', 'ignore') for key in mutations_category.keys()]
-        values = mutations_category.values()
-
-        context = {'samples_col': samples_col,
-                   'default_col': default_col,
-                   'all_fields': all_fields,
-                   'query': region,
-                   'gene_symbol': region,
-                   'mutations': mutations,
-                   'category': category,
-                   'values': values,
-                   'type': type,
-                   'sw_annotation': sw_annotation,
-                   'groups': groups,
-                   'project_name': project_name}
-
-        return render(request, 'gene_results.html', context)
+    context = {'samples_col': samples,
+                'default_col': default_col,
+                'all_fields': all_fields,
+                'query': region,
+                'gene_symbol': region,
+                'mutations': mutations,
+                'category': category,
+                'values': list(mutations_category.values()),
+                'type': type,
+                'sw_annotation': sw_annotation,
+                'groups': groups,
+                'project_name': project_name}
+    return render(request, 'gene_results.html', context)
 
 
 @login_required
 def display_variant_results(request, variant, project_name):
 
-    def format_variant(variant):
-        v = {}
-        split_v = variant.split("-")
-        v['chrom'] = split_v[0]
-        v['pos'] = split_v[1]
-        v['ref'] = split_v[3]
-        v['alt'] = split_v[4]
-        return v
+    # get the info of the project
+    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
+    sw_annotation = dbinfo.sw_annotation
+    gene_annotation = dbinfo.gene_annotation
+    samples = ast.literal_eval(dbinfo.samples)
+    assembly_version = dbinfo.assembly_version
+    mutation_col = dbinfo.mutation_col
+    n_samples = dbinfo.n_samples()
 
-    def get_mutations(model, variant, project_db):
-        # return the mutation of a particular location
-        try:
-            mutations = model.objects.using(project_db).filter(chrom=variant['chrom'],
-                                                               pos=variant['pos'],
-                                                               ref=variant['ref'],
-                                                               alt=variant['alt']).get()
-        except:
-            mutations = 0
-        return mutations
-
-    def get_zigosity(samples, mutations):
-        l = []
-        for sample in samples:
-            s = sample.lower()
-            l.append(getattr(mutations, s))
-        d = Counter(l)
-        return d
-
-    if request.method == 'GET': 
-        # get the info of the project
-        dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-        sw_annotation = dbinfo.sw_annotation
-        gene_annotation = dbinfo.gene_annotation
-        samples = ast.literal_eval(dbinfo.samples)
-        assembly_version = dbinfo.assembly_version
-        mutation_col = dbinfo.mutation_col
-        n_samples = dbinfo.n_samples()
-
+    # Get mutations
+    model = apps.get_model(app_label=app_label,model_name=project_name)
+    split_v = variant.split("-")
+    mutations = None
+    try:
+        mutations = model.objects.using(project_db).filter(chrom=split_v[0],
+                                                            pos=split_v[1],
+                                                            ref=split_v[3],
+                                                            alt=split_v[4]).get()
+    except:
+        pass
+    if mutations is None:
+        context = {'q': variant, 'project_name': project_name}
+        template = 'not_found.html'
+    else:
+        # Csq and gene
         # Get the gene field depending on annotation
         gene_field = "gene_ensgene" if sw_annotation == "annovar" else "gene"
-        v = format_variant(variant)
-        model = apps.get_model(app_label=app_label,
-                               model_name=project_name)
-        model_name_ensembl = "Gene" + gene_annotation
-        model_ensembl = apps.get_model(app_label=app_label,
-                                       model_name=model_name_ensembl)
-        mutations = get_mutations(model, v, project_db)
+        model_ensembl = apps.get_model(app_label=app_label, model_name="Gene" + gene_annotation)
         csq = getattr(mutations, mutation_col)
         ensgene_id = getattr(mutations, gene_field)
-        # To fix
-        # Example: in annovar annotation, 1:865628 G / A SAMD11
         gene = model_ensembl.objects.filter(ensgene=ensgene_id).values("genename", "description").distinct()
-        # To fix: Multiple ENSGID in gene
-        # return HttpResponse(gene)
 
-        if mutations == 0:
-            context = {'q': variant,
-                       'project_name': project_name}
-            template = 'not_found.html'
-        else:
-            low_ac = 0
-            covered_samples = mutations.an / 2
-            if mutations.an <= ((n_samples * 2) * 80 / 100):
-                low_ac = 1
+        # Coverage
+        covered_samples = mutations.an / 2
+        low_ac = 1 if mutations.an <= ((n_samples * 2) * 80 / 100) else 0
 
-            zigosity_index = ["0", "1", "2"]
-            zigosity_list = get_zigosity(samples, mutations)
+        # Zigosity
+        zigosity_index = ["0", "1", "2"]
+        zigosity_list = Counter([getattr(mutations, sample.lower()) for sample in samples])
 
-            # Assembly label
-            if assembly_version == "hg19":
-                assembly_label = "GRCh37/hg19"
-            else:
-                assembly_label = "GRCh38/hg38"
+        # Assembly label
+        assembly_label = "GRCh37/hg19" if assembly_version == "hg19" else "GRCh38/hg38"
 
-            context = {'mutations': mutations,
-                       'low_ac': low_ac,
-                       'n_samples': n_samples,
-                       'covered_samples': covered_samples,
-                       'csq': csq,
-                       'ensgene_id': ensgene_id,
-                       'gene': gene,
-                       'zigosity_index': zigosity_index,
-                       'zigosity_list': zigosity_list,
-                       'project_name': project_name,
-                       'assembly_label': assembly_label,
-                       'sw_annotation': sw_annotation,
-                       'variant': variant}
-            template = 'variant_results.html'
+        context = {'mutations': mutations,
+                    'low_ac': low_ac,
+                    'n_samples': n_samples,
+                    'covered_samples': covered_samples,
+                    'csq': csq,
+                    'ensgene_id': ensgene_id,
+                    'gene': gene,
+                    'zigosity_index': zigosity_index,
+                    'zigosity_list': list(zigosity_list.values()),
+                    'project_name': project_name,
+                    'assembly_label': assembly_label,
+                    'sw_annotation': sw_annotation,
+                    'variant': variant}
+        template = 'variant_results.html'
 
-        # return HttpResponse(mutations)
-        return render(request, template, context)
+    return render(request, template, context)
 
 
 def get_exac_data(request, variant, project_name):
-    # reformat position from:
-    # CHR-POS-POS-REF-ALT
-    # in
-    # CHR-POS-REF-ALT
-    s = "-"
-    v_split = variant.split(s)
+
+    v_split = variant.split("-")
 
     # Get assembly version for the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     assembly_version = dbinfo.assembly_version
 
+    res_data = []
+    response = False
     if assembly_version == "hg19":
         # Format variant for EXAC REST
-        v = s.join([v_split[0], v_split[1], v_split[3], v_split[4]])
-
+        v = "-".join([v_split[0], v_split[1], v_split[3], v_split[4]])
         url = "http://exac.hms.harvard.edu/rest/variant/variant/" + v
         r = requests.get(url)
         if r.ok:
             response = r.ok
-            exac_data = r.json()
-            populations = exac_data["pop_ans"].keys()
-
-            res_data = []
-            for pop in populations:
-                tmp = {}
-                tmp["population"] = pop
-                tmp["pop_acs"] = exac_data["pop_acs"][pop]
-                tmp["pop_ans"] = exac_data["pop_ans"][pop]
-                tmp["pop_homs"] = exac_data["pop_homs"][pop]
-                tmp["pop_af"] = float("{0:.6f}".format(exac_data["pop_acs"][pop] / float(exac_data["pop_ans"][pop])))
-                res_data.append(tmp)
-        else:
-            response = False
-            res_data = {}
-
-        context = json.dumps({'response': response,
-                              'data': res_data,
-                              'url': url})
+            data = r.json()
+            try:
+                populations = data["pop_ans"].keys()
+                for pop in populations:
+                    tmp = {}
+                    tmp["population"] = pop
+                    tmp["pop_acs"] = data["pop_acs"][pop]
+                    tmp["pop_ans"] = data["pop_ans"][pop]
+                    tmp["pop_homs"] = data["pop_homs"][pop]
+                    tmp["pop_af"] = float("{0:.6f}".format(data["pop_acs"][pop] / float(data["pop_ans"][pop])))
+                    res_data.append(tmp)
+            except KeyError:
+                pass
     else:
         # Format variant for VEP REST
         v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
-
         url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
         r = requests.get(url)
         if r.ok:
             response = r.ok
             data = r.json()
-            res_data = []
-            val = 0
             pop_dict = {"exac_nfe_maf": "European (Non-Finnish)",
                         "exac_fin_maf": "European (Finnish)",
                         "exac_afr_maf": "African",
@@ -438,44 +346,28 @@ def get_exac_data(request, variant, project_name):
                         "exac_sas_maf": "South Asian",
                         "exac_amr_maf": "Latino",
                         "exac_oth_maf": "Other"}
-
-            # Tmp results
-            for pop in pop_dict.keys():
+            for pop, pop_value in pop_dict.items():
                 tmp = {}
-                pop_value = pop_dict[pop]
                 tmp["population"] = pop_value
-                # Set to 0 the allele number because in VEP there is no information on the number
                 tmp["pop_acs"] = "ND"
                 tmp["pop_ans"] = "ND"
                 tmp["pop_homs"] = "ND"
                 try:
                     tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
-                except:
+                except KeyError:
                     tmp["pop_af"] = None
-                    val = 1
                 res_data.append(tmp)
 
-            if val == 1:
-                return HttpResponse("")
-        else:
-            response = False
-            res_data = {}
-
-        context = json.dumps({'response': response,
-                              'data': res_data,
-                              'url': url})
-
+    context = json.dumps({'response': response,
+                          'data': res_data,
+                          'url': url})
     return HttpResponse(context)
 
 
 def get_esp_data(request, variant, project_name):
     # reformat position from:
-    # CHR-POS-POS-REF-ALT
-    # in
-    # CHR:g.PosRef>ALT
-    s = "-"
-    v_split = variant.split(s)
-
+    # CHR-POS-POS-REF-ALT to CHR:g.PosRef>ALT
+    v_split = variant.split("-")
     v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
 
     # Get assembly version for the project
@@ -489,38 +381,29 @@ def get_esp_data(request, variant, project_name):
         url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
 
     r = requests.get(url)
+    res_data = []
+    response = False
     if r.ok:
         response = r.ok
         data = r.json()
-        res_data = []
-        val = 0
+        
         # EA
         tmp = {}
         try:
             tmp["population"] = "EA - European American"
             tmp["pop_af"] = data[0]['colocated_variants'][0]['ea_maf']
-        except:
-            tmp = {}
-            val = 1
-
+        except KeyError:
+            pass
         res_data.append(tmp)
 
         # AA
-        tmp = {"population": "AA - African American"}
+        tmp = {}
         try:
             tmp["population"] = "AA - African American"
             tmp["pop_af"] = data[0]['colocated_variants'][0]['aa_maf']
-        except:
-            tmp = {}
-            val = 1
-
+        except KeyError:
+            pass
         res_data.append(tmp)
-
-        if val == 1:
-            return HttpResponse("")
-    else:
-        response = False
-        res_data = []
 
     context = json.dumps({'response': response,
                           'data': res_data,
@@ -530,12 +413,8 @@ def get_esp_data(request, variant, project_name):
 
 def get_1000g_data(request, variant, project_name):
     # reformat position from:
-    # CHR-POS-POS-REF-ALT
-    # in
-    # CHR:g.PosRef>ALT
-    s = "-"
-    v_split = variant.split(s)
-
+    # CHR-POS-POS-REF-ALT to CHR:g.PosRef>ALT
+    v_split = variant.split("-")
     v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
 
     # Get assembly version for the project
@@ -549,35 +428,25 @@ def get_1000g_data(request, variant, project_name):
         url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
 
     r = requests.get(url)
-
+    res_data = []
+    response = False
     if r.ok:
         response = r.ok
         data = r.json()
-        res_data = []
-        val = 0
         pop_dict = {"eur_maf": "European",
                     "afr_maf": "African",
                     "sas_maf": "South Asian",
                     "eas_maf": "East Asian",
                     "amr_maf": "American (Ad Mixed)"}
-
-        # Tmp results
         for pop in pop_dict.keys():
             tmp = {}
             pop_value = pop_dict[pop]
             tmp["population"] = pop_value
             try:
                 tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
-            except:
+            except KeyError:
                 tmp["pop_af"] = None
-                val = 1
             res_data.append(tmp)
-
-        if val == 1:
-            return HttpResponse("")
-    else:
-        response = False
-        res_data = []
 
     context = json.dumps({'response': response,
                           'data': res_data,
@@ -587,12 +456,8 @@ def get_1000g_data(request, variant, project_name):
 
 def get_exac_data_hg38(request, variant, project_name):
     # reformat position from:
-    # CHR-POS-POS-REF-ALT
-    # in
-    # CHR:g.PosRef>ALT
-    s = "-"
-    v_split = variant.split(s)
-
+    # CHR-POS-POS-REF-ALT to CHR:g.PosRef>ALT
+    v_split = variant.split("-")
     v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
 
     # Get assembly version for the project
@@ -606,12 +471,11 @@ def get_exac_data_hg38(request, variant, project_name):
         url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
 
     r = requests.get(url)
-
+    response = False
+    res_data = []
     if r.ok:
         response = r.ok
         data = r.json()
-        res_data = []
-        val = 0
         pop_dict = {"exac_nfe_maf": "European (Non-Finnish)",
                     "exac_fin_maf": "European (Finnish)",
                     "exac_afr_maf": "African",
@@ -620,24 +484,15 @@ def get_exac_data_hg38(request, variant, project_name):
                     "exac_amr_maf": "Latino",
                     "exac_oth_maf": "Other",
                     "exac_maf": "Total"}
-
-        # Tmp results
         for pop in pop_dict.keys():
             tmp = {}
             pop_value = pop_dict[pop]
             tmp["population"] = pop_value
             try:
                 tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
-            except:
+            except KeyError:
                 tmp["pop_af"] = None
-                val = 1
             res_data.append(tmp)
-
-        if val == 1:
-            return HttpResponse("")
-    else:
-        response = False
-        res_data = []
 
     context = json.dumps({'response': response,
                           'data': res_data,
@@ -647,33 +502,21 @@ def get_exac_data_hg38(request, variant, project_name):
 
 def get_insilico_pred(request, variant, project_name):
     # reformat position from:
-    # CHR-POS-POS-REF-ALT
-    # in
-    # CHR:g.PosRef>ALT
-    s = "-"
-    v_split = variant.split(s)
-    # Check "chr" at the beginning
-    if v_split[0].startswith("chr"):
-        v = v_split[0] + '%3Ag.' + v_split[1] + v_split[3] + '>' + v_split[4]
-    else:
-        v = 'chr' + v_split[0] + '%3Ag.' + v_split[1] + v_split[3] + '>' + v_split[4]
+    # CHR-POS-POS-REF-ALT to CHR:g.PosRef>ALT
+    v_split = variant.split('-')
+    v = v_split[0] + '%3Ag.' + v_split[1] + v_split[3] + '>' + v_split[4]
+    if not v_split[0].startswith("chr"):
+        v = 'chr' + v
 
-    # Get assembly version for the project
-    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    assembly_version = dbinfo.assembly_version
-
+    # URL endpoint to get prediction
     url = "http://myvariant.info/v1/variant/" + v + "?fields=dbnsfp.polyphen2%2Cdbnsfp.sift"
 
+    # Parse results
     r = requests.get(url)
-    if r.ok:
-        response = r.ok
-        data = r.json()
-    context = json.dumps({'response': response,
-                          'data': data})
-    return HttpResponse(context)
+    data = json.loads(r.content) if r.ok else {}
+    return JsonResponse({'data': data}, status=200)
 
 
-# settings: Get the COL_LIST FROM the DB
 @login_required
 def settings(request, project_name):
     msg_validate = "OK"
@@ -687,32 +530,31 @@ def settings(request, project_name):
     return render(request, 'settings.html', context)
 
 
-# get_col_list: Get the COL_LIST FROM the DB
 def get_col_list(request, project_name):
+    # Get DB info
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    sw_annotation = dbinfo.sw_annotation
 
     # Transform string into PYTHON LIST (ast.literal_eval)
     samples = ast.literal_eval(dbinfo.samples)
     default_cols = ast.literal_eval(dbinfo.default_col)
     mutation_col = dbinfo.mutation_col
 
-    # Eliminate all special character in samples for clumn visibility
-    # django converts CAPITAL in small letter
-    # - from "-" to "-"
+    # Django converts caracters
     samples = [sample.replace('-', '_').lower() for sample in samples]
 
-    model = apps.get_model(app_label=app_label,
-                           model_name=project_name)
-    # Get all fields
+    # Get data model
+    model = apps.get_model(app_label=app_label, model_name=project_name)
+
+    # all fields
     all_cols = []
-    # Not visible cols
+    # Not visible fields
     other_cols = []
     for f in model._meta.get_fields():
         all_cols.append(f.name)
         if f.name not in default_cols and f.name not in samples:
             other_cols.append(f.name)
-    # Remove ID (autoincrement from DB)
+
+    # Remove ID (autoincrement from results)
     all_cols.remove('id')
     other_cols.remove('id')
     sanity_check = "OK"
@@ -725,21 +567,16 @@ def get_col_list(request, project_name):
     return HttpResponse(context)
 
 
-# get_sample_list: Get the Sample_LIST FROM the DB
 def get_sample_list(request, project_name):
+    # Get DB info
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    sw_annotation = dbinfo.sw_annotation
 
     # Transform string into PYTHON LIST (ast.literal_eval)
     samples = ast.literal_eval(dbinfo.samples)
 
-    # Eliminate all special character in samples for column visibility
-    # django converts CAPITAL in small letter
-    # - from "-" to "-"
+    # Django converts caracters
     samples = [sample.replace('-', '_').lower() for sample in samples]
 
-    model = apps.get_model(app_label=app_label,
-                           model_name=project_name)
     sanity_check = "OK"
     context = json.dumps({'project_name': project_name,
                           'sample_col': samples,
@@ -747,24 +584,22 @@ def get_sample_list(request, project_name):
     return HttpResponse(context)
 
 
-
 def check_group_name(request, project_name):
+    # Get group name from the request
     group_name = request.POST['new_group_name']
+
     # __iexact is case-insensitive
     res = Groups.objects.filter(project_name__iexact=project_name)
-    isValid = True
-    for g in res:
-        if g.group_name == group_name:
-            isValid = False
-    if isValid:
-        context = json.dumps({'valid': True})
-    else:
-        context = json.dumps({'valid': False})
+
+    # check if given group if in list of groups
+    isValid = group_name in [g.group_name for g in res]
+
+    context = json.dumps({'valid': isValid})
     return HttpResponse(context)
 
 
 def delete_group(request, project_name):
-    # AJAX request
+    # Get group name from the request
     group_name = request.POST['g_name']
 
     # Delete data
@@ -781,13 +616,10 @@ def save_preferences(request, project_name):
     cols = request.POST.getlist("cols")
     mutation_col = request.POST["mutation_col"]
 
-    # Join the single cols and convert the string into list
-    s = ','
-    new_col = s.join(cols).split(',')
-
     # Update the default_col field
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    dbinfo.default_col = new_col
+    dbinfo.default_col = cols
+
     # Update mutation_col field
     dbinfo.mutation_col = mutation_col
 
@@ -797,7 +629,7 @@ def save_preferences(request, project_name):
     msg_validate = "OK"
     context = json.dumps({'project_name': project_name,
                           'msg_validate': msg_validate,
-                          'new_col': new_col,
+                          'new_col': cols,
                           'mutation_col': mutation_col})
     return HttpResponse(context)
 
@@ -807,15 +639,12 @@ def save_groups(request, project_name):
     sample_list = request.POST.getlist("samples_list")
     group_name = request.POST["new_group_name"]
 
-    # Join the single cols and convert the string into list
-    s = ','
-    samples = s.join(sample_list).split(',')
-
     # Get project_id
     project_id = DbInfo.objects.get(project_name=project_name).id
 
     # Add group
-    g = Groups(p_id=project_id, project_name=project_name, group_name=group_name, samples=samples)
+    g = Groups(p_id=project_id, project_name=project_name, 
+               group_name=group_name, samples=sample_list)
     g.save()
     context = json.dumps({'r': group_name,
                           'p': project_id,
