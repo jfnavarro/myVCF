@@ -853,12 +853,8 @@ def summary_statistics(request, project_name):
 
 
 def get_qual_vcf(request, project_name):
-    def np_encoder(object):
-        if isinstance(object, np.generic):
-            return object.item()
     # Get the project model
-    model_project = apps.get_model(app_label=app_label,
-                                    model_name=project_name)
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
     # Quality field
     qual_field = "qual"
@@ -886,18 +882,18 @@ def get_mean_variations(request, project_name):
         return value <= lower or value >= upper
 
     # Get the project model
-    model_project = apps.get_model(app_label=app_label,
-                                    model_name=project_name)
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
+
     # Get dbinfo
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     samples = ast.literal_eval(dbinfo.samples)
     samples = [sample.replace('-', '_').lower() for sample in samples]
 
     var_samples = []
+    search_type = "icontains"
     for sample in samples:
-        search_type = "gt"
         filter_string = sample + "__" + search_type
-        value = model_project.objects.using(project_db).filter(**{filter_string: 0}).count()
+        value = model_project.objects.using(project_db).filter(**{filter_string: 1}).count()
         var_samples.append(value)
 
     # Since highchart DRAW only values without calculate anything:
@@ -980,22 +976,18 @@ def get_biotype_variations(request, project_name):
     biotype_col = "biotype" if sw_annotation == "vep" else "func_ensgene"
     
     # Get the summary count of the mutation by type
-    biotype_summary = Counter(model_project.objects.using(project_db).values_list(biotype_col, flat=True))
-    mutation_type_summary_sorted = OrderedDict(sorted(biotype_summary.items(), key=lambda t: -t[1]))
+    biotype_summary = Counter(model_project.objects.using(project_db).values_list(biotype_col, 
+                                                                                  flat=True))
 
     # Format data for Highcharts --> PIE CHART
-    plot_data = []
-    for type in mutation_type_summary_sorted.keys():
-        data = [str(type), mutation_type_summary_sorted[type]]
-        plot_data.append(data)
+    plot_data = list(biotype_summary.items())
 
     return JsonResponse({'plot_data': plot_data}, status=200)
 
 
 def get_exonictype_variations(request, project_name):
     # Get the project model
-    model_project = apps.get_model(app_label=app_label,
-                                   model_name=project_name)
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
     # Get DB INFO
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
@@ -1004,20 +996,17 @@ def get_exonictype_variations(request, project_name):
     mutation_col = dbinfo.get_mutation_col()
 
     # Get the summary count of the mutation by type
-    mutation_type_summary = Counter(model_project.objects.using(project_db).values_list(mutation_col, flat=True))
-    mutation_type_summary_sorted = OrderedDict(sorted(mutation_type_summary.items(), key=lambda t: -t[1]))
+    mutation_type_summary = Counter(model_project.objects.using(project_db).values_list(mutation_col, 
+                                                                                        flat=True))
 
     # Format data for Highcharts --> PIE CHART
-    plot_data = []
-    for type in mutation_type_summary_sorted.keys():
-        data = [str(type), mutation_type_summary_sorted[type]]
-        plot_data.append(data)
+    plot_data = list(mutation_type_summary.items())
 
     return JsonResponse({'plot_data': plot_data}, status=200)
 
 
 def get_top_genes(request, project_name):
-    # N genes to display
+    # N genes and categories to display
     n_genes = 20
     n_categories = 5
 
@@ -1039,31 +1028,30 @@ def get_top_genes(request, project_name):
     # Get the gene list
     res_genes = Counter(model_project.objects.using(project_db).all().values_list(gene_col, flat=True))
 
-    # Get the first n_genes
-    # Categories = top_genes
-    top_genes = OrderedDict(sorted(res_genes.items(), key=lambda t: -t[1])).keys()[:n_genes]
+    # Get the first n_genes (most mutated)
+    top_genes = [x[0] for x in res_genes.most_common(n_genes)]
 
-    # Get function list
+    # Get function (catergories) list for the top genes
     search_type = "in"
     filter_string = gene_col + "__" + search_type
     res_functions = Counter(
         model_project.objects.using(project_db).filter(**{filter_string: top_genes}).values_list(mutation_col,
                                                                                                     flat=True))
-    # Get the first n_categories
-    functions = OrderedDict(sorted(res_functions.items(), key=lambda t: -t[1])).keys()[:n_categories]
+
+    # Get the first n_categories (most mutated)
+    top_functions = [x[0] for x in res_functions.most_common(n_categories)]
 
     # Get the plot data
-    plot_data = {}
-    for func in functions:
+    # The idea is to obtain a list of mutational counts for the top effects of the top genes
+    # TODO this could be done in a much simpler and efficient way
+    plot_data = defaultdict(list)
+    for func in top_functions:
         for gene in top_genes:
             data = model_project.objects.using(project_db).filter(**{gene_col: gene}).filter(
                 **{mutation_col: func}).count()
-            if plot_data.has_key(func):
-                plot_data[func].append(data)
-            else:
-                plot_data[func] = [data]
+            plot_data[func].append(data)
 
-    return JsonResponse({'top_genes': list(top_genes),
+    return JsonResponse({'top_genes': top_genes,
                          'plot_data': plot_data}, status=200)
 
 

@@ -494,12 +494,8 @@
         </table>
     </div>
     
-    <div class="col-md-1">
-    </div>
-        <div class="panel panel-default col-md-6">
-
-    </div>
-    
+    <div class="col-md-1"> </div>
+   
     <div class="row col-md-12"></div>
 
     <div class="row col-md-12">
@@ -517,31 +513,36 @@
         <div id="vcf_summary" class="panel-collapse collapse in">
             <div id="vcf_summary_body" class="panel-body">Plot Content</div>
         </div>
+    </div>
 
+    <div id=vcf_summary_box class="panel panel-default panel-collapse collapse in col-md-6">
         <div id="mutation_boxplot_heading" class="panel-heading">
             <a data-toggle="collapse" data-target="#mutation_boxplot">Number of variations across samples</a>
         </div>
         <div id="mutation_boxplot" class="panel-collapse collapse in">
             <div id="mutation_boxplot_body" class="panel-body">Plot Content</div>
         </div>
-
-        <div id="mutation_genes_heading" class="panel-heading">
-            <a data-toggle="collapse" data-target="#mutation_genes">Top Genes</a>
-        </div>
-        <div id="mutation_genes" class="panel-collapse collapse in">
-            <div id="top_genes_body" class="panel-body">Plot Content</div>
-        </div>
     </div>
 
     <div class="row col-md-12">
         <div class="page-header">
              <a data-toggle="collapse" data-target="#mutation_summary_box">
-                 <h2 class="text-left">Mutation distribution plot</h2>
+                 <h2 class="text-left">Mutation distribution plots</h2>
              </a>
         </div>
     </div>
     
     <div id="mutation_summary_box" class="panel-collapse collapse in">
+
+        <div class="panel panel-default col-md-12">
+            <div id="mutation_genes_heading" class="panel-heading">
+                <a data-toggle="collapse" data-target="#mutation_genes">Top Genes</a>
+            </div>
+            <div id="mutation_genes" class="panel-collapse collapse in">
+                <div id="top_genes_body" class="panel-body">Plot Content</div>
+            </div>
+        </div>
+
         <div class="panel panel-default col-md-12">
             <div id="mutation_chr_heading" class="panel-heading">
                 <a data-toggle="collapse" data-target="#mutation_chr">Mutations distribution: by Chromosome</a>
