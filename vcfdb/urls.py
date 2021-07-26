@@ -20,8 +20,6 @@ urlpatterns = [
         myapp_views.get_insilico_pred, name='insilico' ),
     url(r'^(?P<project_name>\w+)/variant/(?P<variant>(chr)?[0-9XY]{1,2}-[0-9]+-[0-9]+-[Aa,Tt,Gg,Cc]+-[Aa,Tt,Gg,Cc]+)/get_exac_data/$',
         myapp_views.get_exac_data, name='exac'),
-    url(r'^(?P<project_name>\w+)/variant/(?P<variant>(chr)?[0-9XY]{1,2}-[0-9]+-[0-9]+-[Aa,Tt,Gg,Cc]+-[Aa,Tt,Gg,Cc]+)/get_esp_data/$',
-        myapp_views.get_esp_data, name='esp'),
     url(r'^(?P<project_name>\w+)/variant/(?P<variant>(chr)?[0-9XY]{1,2}-[0-9]+-[0-9]+-[Aa,Tt,Gg,Cc]+-[Aa,Tt,Gg,Cc]+)/get_1000g_data/$',
         myapp_views.get_1000g_data, name='1000g'),
     url(r'^(?P<project_name>\w+)/settings/$', myapp_views.settings, name='settings'),

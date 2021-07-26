@@ -133,8 +133,8 @@ def search(request, project_name):
 
         # Send results back
         context = {'query': query,
-                    'results': final_results,
-                    'project_name': project_name}
+                   'results': final_results,
+                   'project_name': project_name}
         return render(request, 'search.html', context)
 
 
@@ -170,13 +170,16 @@ def display_gene_results(request, gene_ensgene, project_name):
     if sw_annotation == "annovar":
         # exact match
         mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=gene_ensgene)
+        mutations_category = Counter([getattr(m, mutation_col) for m in mutations[0]])
+        category = [key for key in mutations_category.keys() if key is not None]
+        values = [value for key, value in mutations_category.items() if key is not None]
     else:
         # exact match
         mutations = model.objects.using(project_db).filter(gene__iexact=gene_ensgene)
-    mutations_category = Counter([getattr(m, mutation_col).encode() for m in mutations])
+        mutations_category = Counter([getattr(m, mutation_col).encode() for m in mutations])
+        category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
+        values = list(mutations_category.values())
 
-    # Get mutation categories
-    category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
     context = {'samples_col': samples_col,
                 'default_col': default_col,
                 'all_fields': all_fields,
@@ -184,7 +187,7 @@ def display_gene_results(request, gene_ensgene, project_name):
                 'gene_symbol': gene_symbol,
                 'mutations': mutations,
                 'category': category,
-                'values': list(mutations_category.values()),
+                'values': values,
                 'type': type,
                 'groups': groups,
                 'project_name': project_name}
@@ -330,7 +333,10 @@ def get_exac_data(request, variant, project_name):
                     tmp["pop_af"] = float("{0:.6f}".format(data["pop_acs"][pop] / float(data["pop_ans"][pop])))
                     res_data.append(tmp)
             except KeyError:
+                print("Could not parse ExAC hg19 data from {}".format(url))
                 pass
+        else:
+            print("Could not retrieve ExAC hg19 data from {}".format(url))
     else:
         # Format variant for VEP REST
         v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
@@ -355,55 +361,10 @@ def get_exac_data(request, variant, project_name):
                 try:
                     tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
                 except KeyError:
-                    tmp["pop_af"] = None
+                    tmp["pop_af"] = -1
                 res_data.append(tmp)
-
-    context = json.dumps({'response': response,
-                          'data': res_data,
-                          'url': url})
-    return HttpResponse(context)
-
-
-def get_esp_data(request, variant, project_name):
-    # reformat position from:
-    # CHR-POS-POS-REF-ALT to CHR:g.PosRef>ALT
-    v_split = variant.split("-")
-    v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
-
-    # Get assembly version for the project
-    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    assembly_version = dbinfo.assembly_version
-
-    if assembly_version == "hg19":
-        # ESP hg19
-        url = "http://grch37.rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
-    else:
-        url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
-
-    r = requests.get(url)
-    res_data = []
-    response = False
-    if r.ok:
-        response = r.ok
-        data = r.json()
-        
-        # EA
-        tmp = {}
-        try:
-            tmp["population"] = "EA - European American"
-            tmp["pop_af"] = data[0]['colocated_variants'][0]['ea_maf']
-        except KeyError:
-            pass
-        res_data.append(tmp)
-
-        # AA
-        tmp = {}
-        try:
-            tmp["population"] = "AA - African American"
-            tmp["pop_af"] = data[0]['colocated_variants'][0]['aa_maf']
-        except KeyError:
-            pass
-        res_data.append(tmp)
+        else:
+            print("Could not retrieve ExAC hg19 data from {}".format(url))
 
     context = json.dumps({'response': response,
                           'data': res_data,
@@ -422,7 +383,6 @@ def get_1000g_data(request, variant, project_name):
     assembly_version = dbinfo.assembly_version
 
     if assembly_version == "hg19":
-        # 1000G hg19
         url = "http://grch37.rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
     else:
         url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
@@ -433,66 +393,14 @@ def get_1000g_data(request, variant, project_name):
     if r.ok:
         response = r.ok
         data = r.json()
-        pop_dict = {"eur_maf": "European",
-                    "afr_maf": "African",
-                    "sas_maf": "South Asian",
-                    "eas_maf": "East Asian",
-                    "amr_maf": "American (Ad Mixed)"}
-        for pop in pop_dict.keys():
-            tmp = {}
-            pop_value = pop_dict[pop]
-            tmp["population"] = pop_value
-            try:
-                tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
-            except KeyError:
-                tmp["pop_af"] = None
-            res_data.append(tmp)
-
-    context = json.dumps({'response': response,
-                          'data': res_data,
-                          'url': url})
-    return HttpResponse(context)
-
-
-def get_exac_data_hg38(request, variant, project_name):
-    # reformat position from:
-    # CHR-POS-POS-REF-ALT to CHR:g.PosRef>ALT
-    v_split = variant.split("-")
-    v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
-
-    # Get assembly version for the project
-    dbinfo = DbInfo.objects.filter(project_name=project_name).first()
-    assembly_version = dbinfo.assembly_version
-
-    if assembly_version == "hg19":
-        # ExAC
-        url = "http://grch37.rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
+        try:
+            for pop, pop_value in list(data[0]['colocated_variants'][1]['frequencies'].values())[0].items():
+                res_data.append({"population": pop, "pop_af": pop_value})
+        except Exception:
+            print("Error parsing 1000g data from {}".format(url))
+            pass
     else:
-        url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
-
-    r = requests.get(url)
-    response = False
-    res_data = []
-    if r.ok:
-        response = r.ok
-        data = r.json()
-        pop_dict = {"exac_nfe_maf": "European (Non-Finnish)",
-                    "exac_fin_maf": "European (Finnish)",
-                    "exac_afr_maf": "African",
-                    "exac_eas_maf": "East Asian",
-                    "exac_sas_maf": "South Asian",
-                    "exac_amr_maf": "Latino",
-                    "exac_oth_maf": "Other",
-                    "exac_maf": "Total"}
-        for pop in pop_dict.keys():
-            tmp = {}
-            pop_value = pop_dict[pop]
-            tmp["population"] = pop_value
-            try:
-                tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
-            except KeyError:
-                tmp["pop_af"] = None
-            res_data.append(tmp)
+        print("Could not retrieve 1000g data from {}".format(url))
 
     context = json.dumps({'response': response,
                           'data': res_data,
@@ -704,8 +612,6 @@ def get_qual_vcf(request, project_name):
 def get_mean_variations(request, project_name):
 
     def is_outlier(value, p25, p75):
-        """Check if value is an outlier
-        """
         lower = p25 - 1.5 * (p75 - p25)
         upper = p75 + 1.5 * (p75 - p25)
         return value <= lower or value >= upper
@@ -888,7 +794,6 @@ def plink_gene(request, project_name, gene_ensgene):
     def get_mutations_plink(model, sw_annotation, ensgene, project_db):
         # return the mutations and default_col of a particular gene based on the sw_annotation
         if sw_annotation == "annovar":
-            # exact match
             return model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
         return model.objects.using(project_db).filter(gene__iexact=ensgene)
 
