@@ -56,8 +56,7 @@ def project_homepage(request, project_name):
 @login_required
 def search(request, project_name):
     def is_region(query):
-        res = len(re.findall(r"[:-]", query))
-        return res == 2
+        return len(re.findall(r"[:-]", query)) == 2
 
     def split_region(region):
         # Get the numbers from string
@@ -158,10 +157,9 @@ def display_gene_results(request, gene_ensgene, project_name):
 
     # Django converts characters
     samples = [sample.replace('-', '_') for sample in samples]
-    model = apps.get_model(app_label=app_label, model_name=project_name)
 
-    # Samples pattern matching
-    samples_col = samples
+    # Get model
+    model = apps.get_model(app_label=app_label, model_name=project_name)
 
     # Get fields
     all_fields = [f.name for f in model._meta.get_fields()]
@@ -170,7 +168,7 @@ def display_gene_results(request, gene_ensgene, project_name):
     if sw_annotation == "annovar":
         # exact match
         mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=gene_ensgene)
-        mutations_category = Counter([getattr(m, mutation_col) for m in mutations[0]])
+        mutations_category = Counter([getattr(m, mutation_col) for m in mutations])
         category = [key for key in mutations_category.keys() if key is not None]
         values = [value for key, value in mutations_category.items() if key is not None]
     else:
@@ -180,17 +178,19 @@ def display_gene_results(request, gene_ensgene, project_name):
         category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
         values = list(mutations_category.values())
 
-    context = {'samples_col': samples_col,
-                'default_col': default_col,
-                'all_fields': all_fields,
-                'query': gene_ensgene,
-                'gene_symbol': gene_symbol,
-                'mutations': mutations,
-                'category': category,
-                'values': values,
-                'type': type,
-                'groups': groups,
-                'project_name': project_name}
+    print(category)
+    print(values)
+    context = {'samples_col': samples,
+               'default_col': default_col,
+               'all_fields': all_fields,
+               'query': gene_ensgene,
+               'gene_symbol': gene_symbol,
+               'mutations': mutations,
+               'category': category,
+               'values': values,
+               'type': type,
+               'groups': groups,
+               'project_name': project_name}
 
     return render(request, 'gene_results.html', context)
 

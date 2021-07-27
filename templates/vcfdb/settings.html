@@ -84,7 +84,6 @@
             // handle a successful response
             success : function(obj) {
                 var res = JSON.parse(obj);
-                //console.log(res)
                 var visible_col = "";
                 var other_col = "";
                 var all_col = "";
@@ -115,8 +114,6 @@
                 };
                 // All possilble field for mutation type
                 $('#mutation_col').append(all_col);
-                //console.log(visible_col); // another sanity check
-                //console.log("success"); // another sanity check
             },
 
             // handle a non-successful response
@@ -354,7 +351,7 @@
             </div>
         </form>
     </div>
-    {% if sw_annotation != "other" %}
+
     <div class="row marketing">
         <div>
             <h2>Setup groups</h2>
@@ -404,28 +401,28 @@
                 </thead>
                 <tbody>
                 {% for group in groups %}
-                <tr>
-                    <td class="small">
-                        {{ group.group_name }}
-                    </td>
-                    <td class="small">
-                        {{ group.samples|list_to_text|title }}
-                    </td>
-                    <td>
-                        <button class="confirm-delete btn btn-danger btn-sm" data-id="{{ group.group_name }}"
-                                data-toggle="modal"
-                                data-target="#myModal_delete">
-                            <i class="glyphicon glyphicon-trash"></i> Delete
-                        </button>
-                    </td>
-                </tr>
+                    <tr>
+                        <td class="small">
+                            {{ group.group_name }}
+                        </td>
+                        <td class="small">
+                            {{ group.samples|list_to_text|title }}
+                        </td>
+                        <td>
+                            <button class="confirm-delete btn btn-danger btn-sm" data-id="{{ group.group_name }}"
+                                    data-toggle="modal"
+                                    data-target="#myModal_delete">
+                                <i class="glyphicon glyphicon-trash"></i> Delete
+                            </button>
+                        </td>
+                    </tr>
                 {% endfor %}
                 </tbody>
             </table>
             </div>
         </div>
     </div>
-    {% endif %}
+
 </div>
 
 <!-- modal -->

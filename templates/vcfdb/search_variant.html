@@ -32,9 +32,9 @@
     </div>
     <div class="row">
         {% if query %}
-        <h2>You searched for: <em>{% filter force_escape|upper %}{{ query }}{% endfilter %}</em></h2>
+            <h2>You searched for: <em>{% filter force_escape|upper %}{{ query }}{% endfilter %}</em></h2>
         {% else %}
-        <h2>No dbSNP ID found!</h2>
+            <h2>No dbSNP ID found!</h2>
         {% endif %}
     </div>
 
@@ -54,21 +54,21 @@
             </thead>
             <tbody>
             {% for result in results %}
-            <tr>
-                <td>
-                    <a href="/vcfdb/{{ project_name }}/variant/{{ result.chrom }}-{{ result.pos }}-{{ result.pos }}-{{ result.ref }}-{{ result.alt }}">
-                        {{ result.chrom }}-{{ result.pos }}-{{ result.pos }}-{{ result.ref }}-{{ result.alt }}
-                    </a>
-                </td>
-                <td><a href="http://www.ncbi.nlm.nih.gov/SNP/snp_ref.cgi?rs={{ result.rs_id }}" target="_blank">{{ result.rs_id }}</a></td>
-                <td>{{ result.ref }}</td>
-                <td>{{ result.alt }}</td>
-                <td>{{ result.af }}</td>
-                <td>{{ result.dp }}</td>
-                <td>{{ result|getattr:gene_symbol_col }}</td>
-                <td><a href="/vcfdb/{{ project_name }}/gene/{{ result|getattr:ensgene_id_col }}">{{ result|getattr:ensgene_id_col }}</a></td>
+                <tr>
+                    <td>
+                        <a href="/vcfdb/{{ project_name }}/variant/{{ result.chrom }}-{{ result.pos }}-{{ result.pos }}-{{ result.ref }}-{{ result.alt }}">
+                            {{ result.chrom }}-{{ result.pos }}-{{ result.pos }}-{{ result.ref }}-{{ result.alt }}
+                        </a>
+                    </td>
+                    <td><a href="http://www.ncbi.nlm.nih.gov/SNP/snp_ref.cgi?rs={{ result.rs_id }}" target="_blank">{{ result.rs_id }}</a></td>
+                    <td>{{ result.ref }}</td>
+                    <td>{{ result.alt }}</td>
+                    <td>{{ result.af }}</td>
+                    <td>{{ result.dp }}</td>
+                    <td>{{ result|getattr:gene_symbol_col }}</td>
+                    <td><a href="/vcfdb/{{ project_name }}/gene/{{ result|getattr:ensgene_id_col }}">{{ result|getattr:ensgene_id_col }}</a></td>
 
-            </tr>
+                </tr>
             {% endfor %}
             </tbody>
         </table>
