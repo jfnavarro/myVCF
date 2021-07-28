@@ -32,22 +32,16 @@
                 type : "POST", // http method
                 data : {'csrfmiddlewaretoken': '{{ csrf_token }}',
                         'static_path' : '{% static "VCFs/" %}'}, // data sent with the post request
-
                 // handle a successful response
                 success : function(obj) {
                     $("#vcf_name option").remove();
-                    var res = JSON.parse(obj)
+                    var res = JSON.parse(obj);
                     var list_html = "<optgroup label='VCF files'>"
-                    //console.log(res.files)
                     for (file in res.files) {
                         list_html += "<option value='"+res.files[file]+"'>"+res.files[file]+"</option>";
                     }
-                    $('#vcf_name').append(list_html)
-                    //console.log(list_html); // another sanity check
-                    console.log("success"); // another sanity check
-
+                    $('#vcf_name').append(list_html);
                 },
-
                 // handle a non-successful response
                 error : function(xhr,errmsg,err) {
                     console.log(xhr.status + ": " + xhr.responseText); // provide a bit more info about the error to the console
@@ -63,7 +57,6 @@
             .on('error.field.bv', function(e, data) {
                     if (data.field === 'vcf_name' && data.validator === 'remote') {
                         var msg = data.result.msg_validate;
-                        // console.log("Check");
                         // Hide valid message if any
                         $("#validMsg_vcf_name").hide();
                         $("#warnMsg_vcf_name").hide();
@@ -83,46 +76,22 @@
                     var validator = data.validator,
                         field  = data.field,   // Get the field name
                         $field = data.element
-
                     if (field === 'vcf_name' && validator === 'remote') {
                         var msg = data.result.msg_validate;
                         var annotation = data.result.annotation;
                         $("#sw_annotation").val(annotation);
                         $("#warnMsg_vcf_name").hide();
-                        // console.log("Check");
                         // Show a valid message
-                        if (annotation != "other"){
-                            $("#validMsg_vcf_name").html("<p>The VCF is good! <br> Annotation system: "+ annotation + "</p>");
-                            var radios_assembly = document.getElementsByName("assembly_version");
-                            // Enable assembly fields
-                            for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
-                                radios_assembly[i].disabled = false;
-                            }
-                            // Enable transcript annotation fields
-                            var radios_tx = document.getElementsByName("annotation_version");
-                            for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
-                                radios_tx[i].disabled = false;
-                            }
-                        } else {
-                            $("#validMsg_vcf_name").html("<p>The VCF is good!<br> Annotation system: "+ annotation + "</p>");
-                            $("#warnMsg_vcf_name").show();
-                            $("#warnMsg_vcf_name").html("<p>The VCF does not contain any annotation or is a non-human reference</p>");
-                            var radios_assembly = document.getElementsByName("assembly_version");
-
-                            // Disable assembly fields
-                            for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
-                                radios_assembly[i].disabled = true;
-                            }
-                            radios_assembly[radios_assembly.length-1].disabled = false;
-                            radios_assembly[radios_assembly.length-1].checked = true;
-
-                            // Disable transcript annotation fields
-                            var radios_tx = document.getElementsByName("annotation_version");
-                            for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
-                                radios_tx[i].disabled = true;
-                            }
-                            radios_tx[radios_tx.length-1].disabled = false;
-                            radios_tx[radios_tx.length-1].checked = true;
+                        $("#validMsg_vcf_name").html("<p>The VCF is good! <br> Annotation system: "+ annotation + "</p>");
+                        var radios_assembly = document.getElementsByName("assembly_version");
+                        // Enable assembly fields
+                        for (var i=0, iLen=radios_assembly.length; i<iLen; i++) {
+                            radios_assembly[i].disabled = false;
+                        }
+                        // Enable transcript annotation fields
+                        var radios_tx = document.getElementsByName("annotation_version");
+                        for (var i=0, iLen=radios_tx.length; i<iLen; i++) {
+                            radios_tx[i].disabled = false;
                         }
                         $("#validMsg_vcf_name").show();
                     }
@@ -145,14 +114,14 @@
                             },
                             regexp: {
                                 regexp: /^[a-zA-Z0-9]+$/,
-                                message: 'The Project name can only consist of alphabetical, number'
+                                message: 'The Project name can only consist of alphanumerical characters'
                             },
                             notEmpty: {
                                 message: 'The Project name is required and cannot be empty'
                             },
                             stringLength: {
                                 min: 3,
-                                message: 'Your name should be longer than three characters'
+                                message: 'The project name should be longer than three characters'
                             }
                         }
                     },
@@ -287,7 +256,6 @@
                     <button id="upload_button" type="submit"
                             class="btn btn-primary"
                             data-loading-text="<span class='glyphicon glyphicon-refresh'></span> Uploading...">
-                            <!--onclick="waitingDialog.show('Saving VCF...', {progressType: 'success'})">-->
                         Submit
                     </button>
                 </div>
@@ -317,13 +285,6 @@
             '</div></div></div>');
 
         return {
-            /**
-             * Opens our dialog
-             * @param message Custom message
-             * @param options Custom options:
-             * 				  options.dialogSize - bootstrap postfix for dialog size, e.g. "sm", "m";
-             * 				  options.progressType - bootstrap postfix for progress bar type, e.g. "success", "warning".
-             */
             show: function (message, options) {
                 // Assigning defaults
                 if (typeof options === 'undefined') {

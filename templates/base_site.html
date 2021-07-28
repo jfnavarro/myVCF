@@ -29,7 +29,6 @@
                 //catch the id for later deletion, and username to display on modal
                 var button = $(event.relatedTarget) // Button that triggered the modal
                 var id = button.data('id') // Extract info from data-* attributes
-                //console.log('ok')
                 $('#myModal .modal-body').html("<p>Do you want to delete project: " + '<b>' + id + '</b>' + ' ?</p>');
                 // Pass the id of the project to the modal
                 $('#myModal').data('id', id);
@@ -38,25 +37,27 @@
             $('#btnYes').on('click', function() {
                 $(this).button('loading');
                 var id = $('#myModal').data('id');
-                console.log(id);
                 $.ajax({
                     url: 'delete_db/',
                     type: 'POST',
                     data: {'csrfmiddlewaretoken': '{{ csrf_token }}',
-                        'project_name' : id}, // data sent with the post request
-                    success: function(obj){
+                           'project_name' : id}, // data sent with the post request
+                    success: function(obj) {
                         // Get the obj from django function
                         var res = JSON.parse(obj);
-                        console.log(res.project_name); // sanity check
                         //removing entire row
                         $('[data-id='+id+']').parents('tr').remove();
-                        console.log(res); // another sanity check
-                        console.log("success"); // another sanity check
                         $('#myModal').modal('hide');
                         $('#deleting_modal').modal('hide');
                         // Delete confirmation
                         $('#title_confirm').html(res.project_name+" : "+res.msg_validate);
                         $('#myModal_confirm').modal('show');
+                    },
+                    error : function(xhr, errmsg, err) {
+                        console.log(xhr.status + ": " + xhr.responseText);
+                        $('#myModal').modal('hide');
+                        $('#deleting_modal').modal('hide');
+                        // TODO add error message in a modal
                     }
                 });
                 return false;
@@ -225,13 +226,6 @@
             '</div></div></div>');
 
         return {
-            /**
-             * Opens our dialog
-             * @param message Custom message
-             * @param options Custom options:
-             * 				  options.dialogSize - bootstrap postfix for dialog size, e.g. "sm", "m";
-             * 				  options.progressType - bootstrap postfix for progress bar type, e.g. "success", "warning".
-             */
             show: function (message, options) {
                 // Assigning defaults
                 if (typeof options === 'undefined') {

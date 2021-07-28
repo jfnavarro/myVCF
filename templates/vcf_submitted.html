@@ -9,13 +9,12 @@
     {# Load datatables JS #}
     <script type="text/javascript" src="{% static 'vcfdb/js/jquery-1.11.3.js' %}"></script>
 
-
     {% bootstrap_javascript %}
     {% bootstrap_css %}
     <link rel="stylesheet" type="text/css" href="{% static 'vcfdb/css/jumbotron-narrow.css' %}">
 
     {% block extra_head_content %}
-    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-validator/0.4.5/css/bootstrapvalidator.min.css"></script>
+    <link rel="stylesheet" type="text/css" href="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-validator/0.4.5/css/bootstrapvalidator.min.css"></script>
     <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-validator/0.4.5/js/bootstrapvalidator.min.js"></script>
 
     {# Bootstrap Validator Form #}

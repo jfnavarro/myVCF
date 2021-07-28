@@ -17,3 +17,4 @@ urlpatterns = [
     url(r'^vcfdb/', include(myVCF_urls, namespace="vcfdb")),
     url(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
 ]
+

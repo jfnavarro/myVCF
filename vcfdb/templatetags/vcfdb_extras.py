@@ -76,34 +76,12 @@ def get_mutation_genotype_by_group(obj, group):
     # Obj single VCF obj
     samples = obj.sample_list(group)
     genotype = 0
-    l = []
-    freq = 0
     for sample in samples:
         try:
             genotype += (int(getattr(obj, sample)))
         except ValueError:
             genotype += 0
-        # l.append((int(getattr(obj, sample))))
-    freq = round(genotype / float(len(samples)), 2)
     return genotype
-
-
-@register.filter
-def get_mutation_by_type(obj, args):
-    # Obj list of VCF obj
-    args = args.split(',')
-    type = args[0]
-    group = args[1]
-    mutations = 0
-    for mutation in obj:
-        # RefGene
-        if mutation.exonicfunc_refgene.startswith(type):
-            mutations += mutation.get_mutation_genotype_by_group(group)
-        # ENSGENE
-        # if mutation.exonicfunc_ensgene.startswith(type):
-        #    mutations += mutation.get_mutation_genotype_by_group(group)
-
-    return mutations
 
 
 @register.filter

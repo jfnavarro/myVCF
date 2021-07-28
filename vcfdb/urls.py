@@ -38,5 +38,6 @@ urlpatterns = [
     url(r'^(?P<project_name>\w+)/summary_statistics/get_top_genes/$', myapp_views.get_top_genes),
 ]
 
+handler400 = myapp_views.error400
 handler404 = myapp_views.error404
 handler500 = myapp_views.error500

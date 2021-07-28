@@ -25,12 +25,20 @@ actual_db = "default"
 project_db = "projects"
 
 
+def error400(request, exception):
+    # TODO add error message to the request
+    context = {'test': "OK"}
+    return render(request, '400.html', context)
+
+
 def error404(request, exception):
+    # TODO add error message to the request
     context = {'test': "OK"}
     return render(request, '404.html', context)
 
 
 def error500(request):
+    # TODO add error message to the request
     context = {'test': "OK"}
     return render(request, '500.html', context)
 
@@ -74,9 +82,6 @@ def search(request, project_name):
         pattern = re.compile('^[0-9XY]{1,2}-[0-9]+-[0-9]+-[A,T,G,C]+-[A,T,G,C]+', re.IGNORECASE)
         return pattern.match(query)
 
-    def get_dbsnp_record(query, model_project):
-        return model_project.objects.using(project_db).filter(rs_id=query)
-
     # Parse request
     query = request.GET['q']
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
@@ -91,40 +96,44 @@ def search(request, project_name):
         region_query = split_region(query)
         return HttpResponseRedirect('/vcfdb/%s/region/%s' % (project_name, region_query))
     elif is_dbsnp(query):
-        results = get_dbsnp_record(query, model_project)
-        if sw_annotation == "vep":
+        results = model_project.objects.using(project_db).filter(rs_id=query)
+        if sw_annotation == "snpeff":
+            gene_symbol_col = "gene_name"
+            ensgene_id_col = "gene_id"
+        elif sw_annotation == "vep":
             gene_symbol_col = "symbol"
             ensgene_id_col = "gene"
         else:
             gene_symbol_col = "gene_refgene"
             ensgene_id_col = "gene_ensgene"
         context = {'query': query,
-                    'results': results,
-                    'ensgene_id_col': ensgene_id_col,
-                    'gene_symbol_col': gene_symbol_col,
-                    'project_name': project_name}
+                   'results': results,
+                   'ensgene_id_col': ensgene_id_col,
+                   'gene_symbol_col': gene_symbol_col,
+                   'project_name': project_name}
         return render(request, 'search_variant.html', context)
     elif is_variant(query):
         # Remove whitespaces
         query = query.replace(" ", "")
         return HttpResponseRedirect('/vcfdb/%s/variant/%s' % (project_name, query))
     else:
+        # The search is a gene name
+
         # Get the ENSEMBL model
         model_name_ensembl = "Gene" + gene_annotation
         model_ensembl = apps.get_model(app_label=app_label, model_name=model_name_ensembl)
-        # TODO this may not work for Annovar
         results = model_ensembl.objects.filter(genename__icontains=query).values('ensgene', 
                                                                                  'genename',
                                                                                  'description').distinct()
 
-        # Get mutation count for each ENSGENE
-        # Build a new dictionary which contains EnsembleGeneID, description, Genename and mutation count
-        # final_results is the merged dictionary
+        # Get mutation count for the gene ids matching the given gene
         final_results = []
         for res in results:
             ensgene_id = res['ensgene']
             if sw_annotation == "annovar":
                 count = model_project.objects.using(project_db).filter(gene_ensgene__iexact=ensgene_id).count()
+            elif sw_annotation == "snpeff":
+                count = model_project.objects.using(project_db).filter(gene_id_iexact=ensgene_id).count()
             else:
                 count = model_project.objects.using(project_db).filter(gene__iexact=ensgene_id).count()
             res['mut_count'] = count
@@ -139,7 +148,6 @@ def search(request, project_name):
 
 @login_required
 def display_gene_results(request, gene_ensgene, project_name):
-
     # get the info of the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     sw_annotation = dbinfo.sw_annotation
@@ -150,7 +158,7 @@ def display_gene_results(request, gene_ensgene, project_name):
     groups = Groups.objects.filter(project_name__iexact=project_name)
     type = "gene"
 
-    # Get gene symbol from ensembl table
+    # Get the ENSEMBL model to obtain the gene name from ensembl id
     model_name_ensembl = "Gene" + gene_annotation
     model_ensembl = apps.get_model(app_label=app_label, model_name=model_name_ensembl)
     gene_symbol = model_ensembl.objects.filter(ensgene__iexact=gene_ensgene).values('genename').distinct()[0]
@@ -165,9 +173,16 @@ def display_gene_results(request, gene_ensgene, project_name):
     all_fields = [f.name for f in model._meta.get_fields()]
 
     # Get the mutation data
+    # TODO this could be simplified
     if sw_annotation == "annovar":
         # exact match
         mutations = model.objects.using(project_db).filter(gene_ensgene__iexact=gene_ensgene)
+        mutations_category = Counter([getattr(m, mutation_col) for m in mutations])
+        category = [key for key in mutations_category.keys() if key is not None]
+        values = [value for key, value in mutations_category.items() if key is not None]
+    elif sw_annotation == "snpeff":
+        # exact match
+        mutations = model.objects.using(project_db).filter(gene_id__iexact=gene_ensgene)
         mutations_category = Counter([getattr(m, mutation_col) for m in mutations])
         category = [key for key in mutations_category.keys() if key is not None]
         values = [value for key, value in mutations_category.items() if key is not None]
@@ -178,8 +193,6 @@ def display_gene_results(request, gene_ensgene, project_name):
         category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
         values = list(mutations_category.values())
 
-    print(category)
-    print(values)
     context = {'samples_col': samples,
                'default_col': default_col,
                'all_fields': all_fields,
@@ -197,7 +210,6 @@ def display_gene_results(request, gene_ensgene, project_name):
 
 @login_required
 def display_region_results(request, region, project_name):
-
     # get the info of the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     sw_annotation = dbinfo.sw_annotation
@@ -209,20 +221,21 @@ def display_region_results(request, region, project_name):
 
     # Django converts characters
     samples = [sample.replace('-', '_') for sample in samples]
+
+    # Get model
     model = apps.get_model(app_label=app_label, model_name=project_name)
 
     # Get fields
     all_fields = [f.name for f in model._meta.get_fields()]
 
-    # Get the mutation data
-    # Split region in CHR, START, END
+    # Get the region fields
     chr, start, end = region.split("-")
 
-    # Get the mutations and default_col of a region
+    # Get the mutations in the region
     mutations = model.objects.using(project_db).filter(chrom=chr).filter(pos__range=[start, end])
-    mutations_category = Counter([getattr(m, mutation_col).encode() for m in mutations])
 
     # Get mutation categories
+    mutations_category = Counter([getattr(m, mutation_col).encode() for m in mutations])
     category = [key.decode('ascii', 'ignore') for key in mutations_category.keys()]
 
     context = {'samples_col': samples,
@@ -242,7 +255,6 @@ def display_region_results(request, region, project_name):
 
 @login_required
 def display_variant_results(request, variant, project_name):
-
     # get the info of the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     sw_annotation = dbinfo.sw_annotation
@@ -252,32 +264,45 @@ def display_variant_results(request, variant, project_name):
     mutation_col = dbinfo.mutation_col
     n_samples = dbinfo.n_samples()
 
-    # Get mutations
+    # Get mutations from the model
     model = apps.get_model(app_label=app_label,model_name=project_name)
     split_v = variant.split("-")
     mutations = None
     try:
         mutations = model.objects.using(project_db).filter(chrom=split_v[0],
-                                                            pos=split_v[1],
-                                                            ref=split_v[3],
-                                                            alt=split_v[4]).get()
+                                                           pos=split_v[1],
+                                                           ref=split_v[3],
+                                                           alt=split_v[4]).get()
     except:
         pass
+
     if mutations is None:
         context = {'q': variant, 'project_name': project_name}
         template = 'not_found.html'
     else:
-        # Csq and gene
         # Get the gene field depending on annotation
-        gene_field = "gene_ensgene" if sw_annotation == "annovar" else "gene"
-        model_ensembl = apps.get_model(app_label=app_label, model_name="Gene" + gene_annotation)
-        csq = getattr(mutations, mutation_col)
+        if sw_annotation == "annovar":
+            gene_field = "gene_ensgene"
+        elif sw_annotation == "snpeff":
+            gene_field = "gene_id"
+        else:
+            gene_field = "gene"
+        
+        # Get the gene name from the ensembl id
         ensgene_id = getattr(mutations, gene_field)
-        gene = model_ensembl.objects.filter(ensgene=ensgene_id).values("genename", "description").distinct()
+        model_ensembl = apps.get_model(app_label=app_label, model_name="Gene" + gene_annotation)
+        gene_name = model_ensembl.objects.filter(ensgene=ensgene_id).values("genename", "description").distinct()
 
+        # Get the mutation effect
+        effect = getattr(mutations, mutation_col)
+        
         # Coverage
-        covered_samples = mutations.an / 2
-        low_ac = 1 if mutations.an <= ((n_samples * 2) * 80 / 100) else 0
+        if n_samples > 1:
+            covered_samples = mutations.an / 2
+            low_ac = 1 if mutations.an <= ((n_samples * 2) * 80 / 100) else 0
+        else:
+            covered_samples = 100
+            low_ac = 0
 
         # Zigosity
         zigosity_index = ["0", "1", "2"]
@@ -290,9 +315,9 @@ def display_variant_results(request, variant, project_name):
                     'low_ac': low_ac,
                     'n_samples': n_samples,
                     'covered_samples': covered_samples,
-                    'csq': csq,
+                    'csq': effect,
                     'ensgene_id': ensgene_id,
-                    'gene': gene,
+                    'gene': gene_name,
                     'zigosity_index': zigosity_index,
                     'zigosity_list': list(zigosity_list.values()),
                     'project_name': project_name,
@@ -455,7 +480,7 @@ def get_col_list(request, project_name):
 
     # all fields
     all_cols = []
-    # Not visible fields
+    # Non visible fields
     other_cols = []
     for f in model._meta.get_fields():
         all_cols.append(f.name)
@@ -562,7 +587,6 @@ def save_groups(request, project_name):
 
 @login_required
 def summary_statistics(request, project_name):
-
     # Get the project model
     model_project = apps.get_model(app_label=app_label,
                                    model_name=project_name)
@@ -619,11 +643,12 @@ def get_mean_variations(request, project_name):
     # Get the project model
     model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
-    # Get dbinfo
+    # Get dbinfo and samples
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     samples = ast.literal_eval(dbinfo.samples)
     samples = [sample.replace('-', '_').lower() for sample in samples]
 
+    # Get variations for each sample
     var_samples = []
     search_type = "icontains"
     for sample in samples:
@@ -631,8 +656,13 @@ def get_mean_variations(request, project_name):
         value = model_project.objects.using(project_db).filter(**{filter_string: 1}).count()
         var_samples.append(value)
 
+    if len(samples) == 1:
+        value = var_samples[0]
+        return JsonResponse({'boxplot_data': 
+                             [project_name, value, value, value, value, value],
+                            'outlier_data': []}, status=200)
+
     # Since highchart DRAW only values without calculate anything:
-    x = project_name
     mut_q1 = np.percentile(var_samples, 25)
     mut_q3 = np.percentile(var_samples, 75)
 
@@ -652,8 +682,7 @@ def get_mean_variations(request, project_name):
     mut_median = np.median(var_samples)
 
     # Generate boxplot_data array
-    boxplot_data = []
-    boxplot_data.extend([x, mut_min, mut_q1, mut_median, mut_q3, mut_max])
+    boxplot_data = [project_name, mut_min, mut_q1, mut_median, mut_q3, mut_max]
 
     return JsonResponse({'boxplot_data': boxplot_data,
                          'outlier_data': outlier_data}, status=200)
@@ -696,7 +725,6 @@ def get_chr_variations(request, project_name):
                          'plot_data': plot_data}, status=200)
 
 
-
 def get_biotype_variations(request, project_name):
     # Get the project model
     model_project = apps.get_model(app_label=app_label, model_name=project_name)
@@ -708,7 +736,12 @@ def get_biotype_variations(request, project_name):
     sw_annotation = dbinfo.sw_annotation
 
     # Biotype column
-    biotype_col = "biotype" if sw_annotation == "vep" else "func_ensgene"
+    if sw_annotation == "annovar":
+        biotype_col = "func_ensgene"
+    elif sw_annotation == "snpeff":
+        biotype_col = "feature_type"
+    else:
+        biotype_col = "biotype" 
     
     # Get the summary count of the mutation by type
     biotype_summary = Counter(model_project.objects.using(project_db).values_list(biotype_col, 
@@ -757,21 +790,25 @@ def get_top_genes(request, project_name):
     # Consequence column
     mutation_col = dbinfo.get_mutation_col()
 
-    # Get ENSGENE ID based on annotation sw
-    gene_col = "gene" if sw_annotation == "vep" else "gene_ensgene"
+    # Get the gene field depending on annotation
+    if sw_annotation == "annovar":
+        gene_field = "gene_ensgene"
+    elif sw_annotation == "snpeff":
+        gene_field = "gene_id"
+    else:
+        gene_field = "gene"
 
     # Get the gene list
-    res_genes = Counter(model_project.objects.using(project_db).all().values_list(gene_col, flat=True))
+    res_genes = Counter(model_project.objects.using(project_db).all().values_list(gene_field, flat=True))
 
     # Get the first n_genes (most mutated)
     top_genes = [x[0] for x in res_genes.most_common(n_genes)]
 
     # Get function (catergories) list for the top genes
     search_type = "in"
-    filter_string = gene_col + "__" + search_type
+    filter_string = gene_field + "__" + search_type
     res_functions = Counter(
-        model_project.objects.using(project_db).filter(**{filter_string: top_genes}).values_list(mutation_col,
-                                                                                                    flat=True))
+        model_project.objects.using(project_db).filter(**{filter_string: top_genes}).values_list(mutation_col, flat=True))
 
     # Get the first n_categories (most mutated)
     top_functions = [x[0] for x in res_functions.most_common(n_categories)]
@@ -782,7 +819,7 @@ def get_top_genes(request, project_name):
     plot_data = defaultdict(list)
     for func in top_functions:
         for gene in top_genes:
-            data = model_project.objects.using(project_db).filter(**{gene_col: gene}).filter(
+            data = model_project.objects.using(project_db).filter(**{gene_field: gene}).filter(
                 **{mutation_col: func}).count()
             plot_data[func].append(data)
 
@@ -795,6 +832,8 @@ def plink_gene(request, project_name, gene_ensgene):
         # return the mutations and default_col of a particular gene based on the sw_annotation
         if sw_annotation == "annovar":
             return model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
+        elif sw_annotation == "snpeff":
+            return model.objects.using(project_db).filter(gene_id__iexact=ensgene)
         return model.objects.using(project_db).filter(gene__iexact=ensgene)
 
     # get the info of the project

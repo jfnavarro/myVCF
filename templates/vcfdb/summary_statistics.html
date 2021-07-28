@@ -4,11 +4,11 @@
 {% block extra_head_content %}
 
 {# Highcharts library #}
-<script src="https://code.highcharts.com/highcharts.js"></script>
-<script src="https://code.highcharts.com/modules/data.js"></script>
-<script src="https://code.highcharts.com/modules/exporting.js"></script>
+<script type="text/javascript" src="https://code.highcharts.com/highcharts.js"></script>
+<script type="text/javascript" src="https://code.highcharts.com/modules/data.js"></script>
+<script type="text/javascript" src="https://code.highcharts.com/modules/exporting.js"></script>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/jquery.highcharttable/0.1/jquery.highcharttable.js"></script>
-<script src="http://code.highcharts.com/highcharts-more.js"></script>
+<script type="text/javascript" src="http://code.highcharts.com/highcharts-more.js"></script>
 
 <script>
 
@@ -48,7 +48,6 @@
                     id: 'plot-line-mean'
                 });
                 chart.hideLoading('Loading...');
-                console.log("Qual var: OK!");
             },
             // handle a non-successful response
             error : function(xhr, errmsg, err) {
@@ -88,7 +87,6 @@
                     }
                 });
                 boxplot_chart.hideLoading('Loading...');
-                console.log("Mean_var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -117,7 +115,6 @@
                     });
                 });
                 chart.hideLoading('Loading...');
-                console.log("Chr var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -139,7 +136,6 @@
                 var chart = $('#mutation_biotype_body').highcharts();
                 chart.series[0].setData(res.plot_data);
                 chart.hideLoading('Loading...');
-                console.log("Biotype var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -161,7 +157,6 @@
                 var chart = $('#mutation_exonictype_body').highcharts();
                 chart.series[0].setData(res.plot_data);
                 chart.hideLoading('Loading...');
-                console.log("Exonic var: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
@@ -188,7 +183,6 @@
                     });
                 });
                 chart.hideLoading('Loading...');
-                console.log("Top Genes: OK!");
             },
             // handle a non-successful response
             error : function(xhr,errmsg,err) {
