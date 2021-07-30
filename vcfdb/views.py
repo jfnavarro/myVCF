@@ -330,66 +330,35 @@ def display_variant_results(request, variant, project_name):
 
 
 def get_exac_data(request, variant, project_name):
-
-    v_split = variant.split("-")
-
     # Get assembly version for the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
     assembly_version = dbinfo.assembly_version
 
+    # Format variant for EXAC REST
+    v_split = variant.split("-")
+    v = "-".join([v_split[0], v_split[1], v_split[3], v_split[4]])
+    url = "http://exac.hms.harvard.edu/rest/variant/variant/" + v
     res_data = []
     response = False
-    if assembly_version == "hg19":
-        # Format variant for EXAC REST
-        v = "-".join([v_split[0], v_split[1], v_split[3], v_split[4]])
-        url = "http://exac.hms.harvard.edu/rest/variant/variant/" + v
-        r = requests.get(url)
-        if r.ok:
-            response = r.ok
-            data = r.json()
-            try:
-                populations = data["pop_ans"].keys()
-                for pop in populations:
-                    tmp = {}
-                    tmp["population"] = pop
-                    tmp["pop_acs"] = data["pop_acs"][pop]
-                    tmp["pop_ans"] = data["pop_ans"][pop]
-                    tmp["pop_homs"] = data["pop_homs"][pop]
-                    tmp["pop_af"] = float("{0:.6f}".format(data["pop_acs"][pop] / float(data["pop_ans"][pop])))
-                    res_data.append(tmp)
-            except KeyError:
-                print("Could not parse ExAC hg19 data from {}".format(url))
-                pass
-        else:
-            print("Could not retrieve ExAC hg19 data from {}".format(url))
-    else:
-        # Format variant for VEP REST
-        v = v_split[0] + ':g.' + v_split[1] + v_split[3] + '>' + v_split[4]
-        url = "http://rest.ensembl.org/vep/human/hgvs/" + v + "?content-type=application/json"
-        r = requests.get(url)
-        if r.ok:
-            response = r.ok
-            data = r.json()
-            pop_dict = {"exac_nfe_maf": "European (Non-Finnish)",
-                        "exac_fin_maf": "European (Finnish)",
-                        "exac_afr_maf": "African",
-                        "exac_eas_maf": "East Asian",
-                        "exac_sas_maf": "South Asian",
-                        "exac_amr_maf": "Latino",
-                        "exac_oth_maf": "Other"}
-            for pop, pop_value in pop_dict.items():
+    r = requests.get(url)
+    if r.ok:
+        response = r.ok
+        data = r.json()
+        try:
+            populations = data["pop_ans"].keys()
+            for pop in populations:
                 tmp = {}
-                tmp["population"] = pop_value
-                tmp["pop_acs"] = "ND"
-                tmp["pop_ans"] = "ND"
-                tmp["pop_homs"] = "ND"
-                try:
-                    tmp["pop_af"] = data[0]['colocated_variants'][0][pop]
-                except KeyError:
-                    tmp["pop_af"] = -1
+                tmp["population"] = pop
+                tmp["pop_acs"] = data["pop_acs"][pop]
+                tmp["pop_ans"] = data["pop_ans"][pop]
+                tmp["pop_homs"] = data["pop_homs"][pop]
+                tmp["pop_af"] = float("{0:.6f}".format(data["pop_acs"][pop] / float(data["pop_ans"][pop])))
                 res_data.append(tmp)
-        else:
-            print("Could not retrieve ExAC hg19 data from {}".format(url))
+        except KeyError:
+            print("Could not parse ExAC data from {}".format(url))
+            pass
+    else:
+        print("Could not retrieve ExAC data from {}".format(url))
 
     context = json.dumps({'response': response,
                           'data': res_data,
@@ -418,8 +387,9 @@ def get_1000g_data(request, variant, project_name):
     if r.ok:
         response = r.ok
         data = r.json()
+        index = 1 if assembly_version == "hg19" else 0
         try:
-            for pop, pop_value in list(data[0]['colocated_variants'][1]['frequencies'].values())[0].items():
+            for pop, pop_value in list(data[0]['colocated_variants'][index]['frequencies'].values())[0].items():
                 res_data.append({"population": pop, "pop_af": pop_value})
         except Exception:
             print("Error parsing 1000g data from {}".format(url))
@@ -443,6 +413,7 @@ def get_insilico_pred(request, variant, project_name):
 
     # URL endpoint to get prediction
     url = "http://myvariant.info/v1/variant/" + v + "?fields=dbnsfp.polyphen2%2Cdbnsfp.sift"
+    print("Obtaining in-silico predictions from {}".format(url))
 
     # Parse results
     r = requests.get(url)
@@ -588,8 +559,7 @@ def save_groups(request, project_name):
 @login_required
 def summary_statistics(request, project_name):
     # Get the project model
-    model_project = apps.get_model(app_label=app_label,
-                                   model_name=project_name)
+    model_project = apps.get_model(app_label=app_label, model_name=project_name)
 
     # Get DB INFO
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()

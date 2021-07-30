@@ -181,7 +181,7 @@ def preprocessing_vcf(request):
                 elif is_vep:
                     annotation = "vep"
                 else:
-                    msg = "The VCF file was not annotated with a supported "
+                    msg = "The VCF file was not annotated with a supported " \
                           "software (Annovar, snpEff and VEP)."
                     valid = False
     except:
@@ -347,14 +347,14 @@ def submit_vcf(request):
             elif key.startswith("GERP"):
                 table_columns.append('"GERP_RS"' + table_type + ", ")
                 columns_clean.append(key)
-            elif key.startswith("CSQ"):
+            elif key == "CSQ":
                 start_pos = int(info.desc.index(":")) + 2
                 i = 1
                 for field in info.desc[start_pos:].split('|'):
                     table_columns.append('"' + field.strip() + '" ' + "TEXT" + ", ")
                     columns_clean.append("CSQ{}".format(i))
                     i += 1
-            elif key.startswith("ANN"):
+            elif key == "ANN":
                 start_pos = int(info.desc.index(":")) + 3
                 i = 1
                 for field in info.desc[start_pos:].split('|')[:-1]:
@@ -440,6 +440,7 @@ def submit_vcf(request):
 def _updateModel():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     manage_script = os.path.join(base_dir, "manage.py")
+    models = os.path.join(base_dir, app_label, "models.py")
     python_bin = sys.executable
     command = [python_bin,
                manage_script,
