@@ -4,11 +4,11 @@
 
     {% load static %}
     {% block jquery_loading %}
-        <script type="text/javascript" src="{% static 'vcfdb/js/jquery-1.11.3.js' %}"></script>
+        <script type="text/javascript" src="{% static 'myvcf_browser/js/jquery-1.11.3.js' %}"></script>
     {% endblock %}
 
     {# Load bootbox for modal windows #}
-    <script type="text/javascript" src="{% static 'vcfdb/js/bootbox.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'myvcf_browser/js/bootbox.min.js' %}"></script>
 
     {% block bootstrap_loading %}
         {% load bootstrap3 %}
@@ -16,7 +16,7 @@
         {% bootstrap_css %}
     {% endblock %}
 
-    <link rel="stylesheet" type="text/css" href="{% static 'vcfdb/css/jumbotron-narrow.css' %}"/>
+    <link rel="stylesheet" type="text/css" href="{% static 'myvcf_browser/css/jumbotron-narrow.css' %}"/>
 </head>
 <body>
 

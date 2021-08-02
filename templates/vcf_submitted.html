@@ -7,11 +7,11 @@
 
     {# Load CSS and JavaScript #}
     {# Load datatables JS #}
-    <script type="text/javascript" src="{% static 'vcfdb/js/jquery-1.11.3.js' %}"></script>
+    <script type="text/javascript" src="{% static 'myvcf_browser/js/jquery-1.11.3.js' %}"></script>
 
     {% bootstrap_javascript %}
     {% bootstrap_css %}
-    <link rel="stylesheet" type="text/css" href="{% static 'vcfdb/css/jumbotron-narrow.css' %}">
+    <link rel="stylesheet" type="text/css" href="{% static 'myvcf_browser/css/jumbotron-narrow.css' %}">
 
     {% block extra_head_content %}
     <link rel="stylesheet" type="text/css" href="http://cdnjs.cloudflare.com/ajax/libs/bootstrap-validator/0.4.5/css/bootstrapvalidator.min.css"></script>
@@ -54,7 +54,7 @@
     <div class="header clearfix">
         <nav>
             <ul class="nav nav-pills pull-right">
-                <li role="presentation"><a href="/vcfdb/{{ project_name }}/">Browser</a></li>
+                <li role="presentation"><a href="/myvcf_browser/{{ project_name }}/">Browser</a></li>
                 <li role="presentation"><a href="/">Home</a></li>
             </ul>
         </nav>

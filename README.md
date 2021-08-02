@@ -37,7 +37,7 @@ python manage.py runserver
 > Performing system checks...
 > System check identified no issues (0 silenced).
 > December 05, 2016 - 17:30:09
-> Django version 1.8.4, using settings 'myVCF_django.settings'
+> Django version 1.8.4, using settings 'myvcf_main.settings'
 > Starting development server at http://127.0.0.1:8000/
 > Quit the server with CONTROL-C.
 

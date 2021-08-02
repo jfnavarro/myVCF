@@ -4,11 +4,11 @@
 
     {% load static %}
     {% block jquery_loading %}
-    <script type="text/javascript" src="{% static 'vcfdb/js/jquery-1.11.3.js' %}"></script>
+    <script type="text/javascript" src="{% static 'myvcf_browser/js/jquery-1.11.3.js' %}"></script>
     {% endblock %}
 
     {# Load bootbox for modal windows #}
-    <script type="text/javascript" src="{% static 'vcfdb/js/bootbox.min.js' %}"></script>
+    <script type="text/javascript" src="{% static 'myvcf_browser/js/bootbox.min.js' %}"></script>
 
     {% block bootstrap_loading %}
 
@@ -18,7 +18,7 @@
 
     {% endblock %}
 
-    <link rel="stylesheet" type="text/css" href="{% static 'vcfdb/css/jumbotron-narrow.css' %}"/>
+    <link rel="stylesheet" type="text/css" href="{% static 'myvcf_browser/css/jumbotron-narrow.css' %}"/>
 
     {% block extra_head_content %}
 
@@ -80,11 +80,11 @@
                 <li role="presentation"><a href="/">Home</a></li>
             </ul>
         </nav>
-        <h3 class="text-muted">myVCF</h3>
+        <h3 class="text-muted">MyVCF2</h3>
 
     </div>
     <div class="jumbotron">
-        <h1>MyVCF Homepage</h1>
+        <h1>MyVCF2 Homepage</h1>
         <p class="lead">web-based tool for browsing VCF files</p>
     </div>
     
@@ -115,7 +115,7 @@
                     <tbody>
                     <tr>
                         <td>
-                            <a href="vcfdb/{{ db.project_name }}">
+                            <a href="myvcf_browser/{{ db.project_name }}">
                                 <span class="glyphicon glyphicon-star" aria-hidden="true"></span>
                                 {{ db.project_name }}
                             </a>
@@ -193,8 +193,7 @@
 
 <footer>
     <div class="nav navbar-default navbar-fixed-bottom">
-        <p class="navbar-text">Created by Alessandro Pietrelli</p>
-        <p class="navbar-text">Modified by Jose Fernandez Navarro (BioLizard)</p>
+        <p class="navbar-text">Created by Alessandro Pietrelli<br>Modified by Jose Fernandez Navarro (BioLizard)</p>
     </div>
 </footer>
 
