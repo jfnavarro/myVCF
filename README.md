@@ -1,18 +1,30 @@
 
 
-# MyVCF2: web-based tool for the visualization and analysis of VCF files
+# MyVCF2: web-based tool for visualization and analysis of VCF files
 
-This tool enables the storage, loading, querying and visulization of 
-VCF files. The tool implements a simple Django interface with a mysql3
-database and secure access (login). VCF files can be loaded into the 
-database and they can be opened and browsed once the user has logged
-in to the application. The tool can be deployed locally and in a dedicated
-server (See deployment). 
+MyVCF2 is a tool that enables the storage, loading, querying and analysis of mutational
+data (SNPs and indels) stored in VCF files. The tool implements a simple django 
+interface with a mysql3 database and secure access (login). The VCF files can be 
+stored in the database and they can be opened and browsed once the user has logged
+in to the application. The tool can be deployed either locally or in a dedicated
+server (See deployment).
 
 ### Acknoledgements
 
-This tool is a custom version of the code present in [http://github.com/apietrelli/myVCF/](http://github.com/apietrelli/myVCF/)
+This tool is a modified version of the code present in [http://github.com/apietrelli/myVCF/](http://github.com/apietrelli/myVCF/)
 
+### Requirements 
+
+The tool requires well formed VCF files that have been annotated with either Annover,
+VEP or snpEff. If multiple samples are available it is recommended to merge them into
+a single VCF file. The tool will recognize the different samples and add them as different
+columns. 
+
+The following fields are required for each of the annotation tools:
+
+* VEP = CSQ, symbol and consequence fields. 
+* Annovar = gene_refgene, gene_ensgene and exonicfunc_ensgene
+* snpEff = gene_name, gene_id, ANN and annotation
 
 ### Deployment
 
@@ -22,27 +34,61 @@ Instructions on how to deploy the tool in a local environment:
 
 
 ``` shell
-# Clone the repository
 git clone https://github.com/jfnavarro/myVCF.git
-
-# Enter into myVCF directory
 cd myVCF
-
-# Install requirements
 pip install -r requirements.txt
-
-# Run the server
 python manage.py runserver
-
-> Performing system checks...
-> System check identified no issues (0 silenced).
-> December 05, 2016 - 17:30:09
-> Django version 1.8.4, using settings 'myvcf_main.settings'
-> Starting development server at http://127.0.0.1:8000/
-> Quit the server with CONTROL-C.
-
-Open the internet browser and go to http://localhost:8000/
+# Open the internet browser and go to http://localhost:8000/
 ```
+
+To deploy the tool in a production environment the following
+steps must be followded:
+
+* Update the secret key in myvcf_main/settings.py (KEEP THIS SAFE). 
+* Copy the mysql3 databases to somewhere local. 
+* Update myvcf_main/settings.py to the new location of the databases. 
+* Create a super user using python manage.py createsuperuser
+* Configure a gateway with a public IP and ensure secure access (firewall and HTTPS). 
+
+### Configuration
+
+Test datasets annotated with Annover, VEP and snpEff are present
+in /data/VCFs. 
+
+The folder /data/annotation contains gene names and ids downloaded
+from different versions of Ensemble. These are then added to the database
+in order to be able to fetch gene names from Ensembl ids. 
+
+The tool was configured using the following commands:
+
+``` shell
+cd myVCF
+python manage.py startproject 
+python data/db/popuplate_genes.py 
+python manage.py makemigration
+python manage.py migrate
+python manage.py createsuperuser
+# admin 
+# 1234admin
+``` 
+
+The test VCF files were then loaded and stored so the tool is
+ready to be launched and tested with two test datasets. 
+
+### Main functionalities
+
+The tool requires login acess. Once the user has logged in the main page
+is loaded where the users can create, delete and open projects (one project per VCF files).
+Once a project has been openned the user enter the VCF browser mode where different
+options are available: 
+
+* See summary statistics of the dataset.
+* Open the settings to define groups or which columns are visible.
+* Query the dataset using: genes, regions and variants. 
+* See the results of the query (genes and regions) in tables with filtering options. 
+* See variants where multiple statistics and graphs are displayed. 
+
+Most of the visualizations and tables are interactive. 
 
 ### Contact
 
