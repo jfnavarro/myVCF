@@ -1,0 +1,341 @@
+{% extends "base_site.html" %}
+
+{% load myvcf_browser_extras %}
+{% load static %}
+
+{% block extra_head_content %}
+
+{# Datatable library #}
+<script type="text/javascript" src="//cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+<script type="text/javascript" src="http://cdn.datatables.net/plug-ins/be7019ee387/integration/bootstrap/3/dataTables.bootstrap.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/s/bs-3.3.5/jq-2.1.4,jszip-2.5.0,pdfmake-0.1.18,dt-1.10.10,b-1.1.0,b-colvis-1.1.0,b-flash-1.1.0,b-html5-1.1.0,cr-1.3.0,se-1.1.0/datatables.min.js"></script>
+
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/s/bs-3.3.5/jq-2.1.4,jszip-2.5.0,pdfmake-0.1.18,dt-1.10.10,b-1.1.0,b-colvis-1.1.0,b-flash-1.1.0,b-html5-1.1.0,cr-1.3.0,se-1.1.0/datatables.min.css"/>
+
+{# Highcharts library #}
+<script type="text/javascript" src="https://code.highcharts.com/highcharts.js"></script>
+<script type="text/javascript" src="https://code.highcharts.com/modules/data.js"></script>
+<script type="text/javascript" src="https://code.highcharts.com/modules/exporting.js"></script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/jquery.highcharttable/0.1/jquery.highcharttable.js"></script>
+
+
+<script>
+    $(document).ready(function() {
+        if ({{ low_ac }} == 1) {
+            console.log("Alert Low_AC");
+            $('#alert_ac').show();
+        };
+        $.ajax({
+            url : "get_insilico_pred/", // the endpoint
+            type : "POST", // http method
+            data : {'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'variant' : '{{ variant }}',
+                    'project_name' : '{{ project_name }}'},
+            // handle a successful response
+            success : function(obj) {
+                var res = obj;
+                d = res.data.dbnsfp;
+                $('#polyphen_hdiv').html(d.polyphen2.hdiv.pred);
+                $('#polyphen_hvar').html(d.polyphen2.hvar.pred);
+                $('#sift').html(d.sift.pred);
+            }
+        });
+        $('#pop_table_1000g').dataTable({
+            dom: 't',
+            processing: true,
+            language: {
+                "emptyTable": "This variant is not present in 1000G Phase 3",
+            },
+            ajax: {
+                url: "get_1000g_data/",
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'project_name' : '{{ project_name }}',
+                    'variant' : '{{ variant }}' },
+                type: 'POST',
+                error: function (xhr, error, thrown) {
+                    $('#pop_table_1000g').DataTable().clear().draw();
+                },
+            },
+            footerCallback: function (row, data, start, end, display) {
+                var api = this.api(), data;
+                // Remove the formatting to get integer data for summation
+                var intVal = function ( i ) {
+                    return typeof i === 'string' ?
+                        i.replace(/[\$,]/g, '')*1 :
+                        typeof i === 'number' ?
+                            i : 0;
+                };
+            },
+            columns: [
+                { "data": "population" },
+                { "data": "pop_af" }
+            ],
+            order: [[ 1, "desc" ]]
+        });
+        $('#pop_table_exac').dataTable({
+            dom: 't',
+            processing: true,
+            language: {
+                "emptyTable": "This variant is not present in ExAC DB",
+            },
+            ajax: {
+                url: "get_exac_data/",
+                data: {
+                    'csrfmiddlewaretoken': '{{ csrf_token }}',
+                    'project_name' : '{{ project_name }}',
+                    'variant' : '{{ variant }}' },
+                type: 'POST',
+                error: function (xhr, error, thrown) {
+                    $('#pop_table_exac').DataTable().clear().draw();
+                },
+            },
+            "footerCallback": function ( row, data, start, end, display ) {
+                var api = this.api(), data;
+                // Remove the formatting to get integer data for summation
+                var intVal = function ( i ) {
+                    return typeof i === 'string' ?
+                        i.replace(/[\$,]/g, '')*1 :
+                        typeof i === 'number' ?
+                            i : 0;
+                };
+                // Total ACS
+                total_acs = api
+                    .column(1)
+                    .data()
+                    .reduce(function(a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0);
+                // Total ANS
+                total_ans = api
+                    .column(2)
+                    .data()
+                    .reduce(function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0);
+                // Total HOMS
+                total_homs = api
+                    .column(3)
+                    .data()
+                    .reduce(function (a, b) {
+                        return intVal(a) + intVal(b);
+                    }, 0);
+                // AF mean
+                avg_af = total_acs / total_ans
+                // Update footer
+                $(api.column(1).footer()).html(total_acs)
+                $(api.column(2).footer()).html(total_ans)
+                $(api.column(3).footer()).html(total_homs)
+                $(api.column(4).footer()).html(avg_af.toFixed(6))
+            },
+            columns: [
+                { "data": "population" },
+                { "data": "pop_acs" },
+                { "data": "pop_ans" },
+                { "data": "pop_homs" },
+                { "data": "pop_af" }
+            ],
+            order: [[ 1, "desc" ]]
+        });
+    });
+</script>
+
+<script>
+    $(function () {
+        $('#zigosity_plot_body').highcharts({
+            chart: {
+            type: 'bar',
+            marginBottom: 80
+            },
+            series: [{
+                name: 'Sample mutated',
+                data: [
+                    {{zigosity_list.0}},
+                    {{zigosity_list.1}},
+                    {{zigosity_list.2}}
+                ],
+            }],
+            title: {
+                text: '{{ variant }}',
+                x: -20 //center
+            },
+            credits: {
+                enabled: false,
+            },
+            xAxis: {
+                min: 0,
+                minPadding: 8,
+                categories: [
+                    'Ref (Homo)', 'Het', 'Alt (Homo)'
+                ]
+            },
+            yAxis: {
+                title: {
+                    text: null
+                },
+
+                plotLines: [{
+                    value: 0,
+                    width: 1,
+                    color: '#808080'
+                }]
+            },
+            legend: {
+            floating: true,
+            verticalAlign: 'bottom',
+            align:'center'
+            },
+        });
+    });
+</script>
+
+
+{% endblock %}
+
+{% block title %}Results for {{ region }}{% endblock %}
+
+{% block body %}
+
+<div class="container">
+    <div class="header clearfix">
+        <nav>
+            <ul class="nav nav-pills pull-right">
+                <li role="presentation"><a href="/myvcf_browser/{{ project_name }}/">Main</a></li>
+                <li role="presentation"><a href="/">Home</a></li>
+            </ul>
+        </nav>
+        <h3 class="text-muted">{{ project_name }}</h3>
+    </div>
+    <div class="row">
+        <h2>Variant: {{ mutations.chrom }}:{{ mutations.pos}} {{mutations.ref}} / {{mutations.alt}}</h2>
+    </div>
+    <div class="row header">
+    </div>
+    <div id= "alert_ac" class="row header" style="display: none">
+        <p>
+            <span class="label label-warning">Low Coverage Warning!</span>
+            This variant is only covered in {{ covered_samples }} individuals of {{ n_samples }}.
+            This is below the 80% of the total samples.
+        </p>
+    </div>
+    <div class="row">
+        <div class="col-md-5" >
+            <div class="row">
+                <p class="lead">Variant information</p>
+            </div>
+            <dl class="dl-horizontal">
+                <dt>Filter</dt>
+                <dd>{{ mutations.filter }}</dd>
+                <dt>dbSNP</dt>
+                <dd><a href="http://www.ncbi.nlm.nih.gov/SNP/snp_ref.cgi?rs={{ mutations.rs_id }}" target="_blank">{{ mutations.rs_id }}</a></dd>
+                <dt>Allele Frequency</dt>
+                <dd>{{ mutations.af }}</dd>
+                <dt>Allele count</dt>
+                <dd>{{ mutations.ac }} / {{ mutations.an }}</dd>
+                <dt>UCSC</dt>
+                <dd><a href="http://genome.ucsc.edu/cgi-bin/hgTracks?position=chr{{mutations.chrom}}%3A{{mutations.pos}}-{{mutations.pos}}" target="_blank">{{ variant }}</a></dd>
+                <dt>ClinVar</dt>
+                <dd>
+                    <a href="http://www.ncbi.nlm.nih.gov/clinvar?term={{ mutations.rs_id }}%5BVariant%20ID%5D" target="_blank">
+                        Click to search for variant in ClinVar <span  class="glyphicon glyphicon-search"></span>
+                    </a>
+                </dd>
+                <div class="row header">
+                </div>
+            </dl>
+            <div class="row">
+                <p class="lead">In-silico predictors</p>
+            </div>
+            <dl class="dl-horizontal">
+                <dt>Polyphen2 HDIV</dt>
+                <dd id="polyphen_hdiv">NA</dd>
+                <dt>Polyphen2 HVAR</dt>
+                <dd id="polyphen_hvar">NA</dd>
+                <dt>SIFT</dt>
+                <dd id="sift">NA</dd>
+                <div class="row header">
+                </div>
+            </dl>
+            <div class="row">
+                <p class="lead">Annotations from VCF</p>
+            </div>
+            {% for g in gene %}
+            <dl class="dl-horizontal">
+                <dt>Gene name</dt>
+                <dd>{{ g.genename }}</dd>
+                <dt>ENSEMBL Gene ID</dt>
+                <dd>
+                    <a href="/myvcf_browser/{{ project_name }}/gene/{{ ensgene_id }}">{{ ensgene_id }}</a>
+                </dd>
+                <dt>Consequence</dt>
+                <dd>{{ csq }}</dd>
+                <dt>Gene description </dt>
+                <dd>{{ g.description }}</dd>
+            {% endfor %}
+            </dl>
+        </div>
+
+        <!-- Separator -->
+        <div class="col-md-1"></div>
+        <!-- END Separator -->
+
+        <div class="panel panel-default col-md-5">
+            <div id="zigosity_plot_heading" class="panel-heading">Zigosity</div>
+            <div id="zigosity_plot_body" class="panel-body">No Data avaliable</div>
+        </div>
+
+    </div>
+
+    <div class="row header">
+        <h3>Population frequencies</h3>
+    </div>
+        <div id="exac_data" class="col-md-6 row">
+            <div class="row">
+            <strong>ExAC ({{ assembly_label }})</strong>
+        </div>
+            <table id="pop_table_exac" class="table small table-sm table-condensed">
+                <thead>
+                    <th>Populations</th>
+                    <th>Allele Count</th>
+                    <th>Allele Number</th>
+                    <th>Number of Homozygous</th>
+                    <th>Allele Frequency</th>
+                </thead>
+                <tfoot>
+                    <th>Total</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tfoot>
+            </table>
+            <div id="exac_alert" class="alert alert-warning" style="display: none">
+                <b>This variant is not present in ExAC DB</b>
+            </div>
+        </div>
+        
+        <!-- Separator -->
+        <div class="col-md-1">
+        </div>
+        <!-- END Separator -->
+
+        <div id="esp_data" class="col-md-5 row">
+            <table id="pop_table_1000g" class="table small table-sm table-condensed">
+                <div class="row">
+                    <strong>1000G Phase 3 Database (gNOMAD) ({{ assembly_label }})</strong>
+                </div>
+                <thead>
+                    <th>Populations</th>
+                    <th>Allele<br>Frequency</th>
+                </thead>
+            </table>
+            <div id="1000g_alert" class="alert alert-warning" style="display: none">
+                <b>This variant is not present in 1000g Phase 3 DB</b>
+            </div>
+        </div>
+    </div>
+
+ </div>
+{% endblock %}
+
