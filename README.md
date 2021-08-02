@@ -90,6 +90,9 @@ options are available:
 
 Most of the visualizations and tables are interactive. 
 
+In order to upload a file to the database, the VCF file must
+be located in the folder /data/VCFs. 
+
 ### Contact
 
 * Jose Fernandez Navarro [jc.fernandez.navarro@gmail.com](mailto:jc.fernandez.navarro@gmail.com)
