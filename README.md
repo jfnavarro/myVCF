@@ -53,7 +53,7 @@ steps must be followed:
 
 ### Configuration
 
-Test datasets annotated with Annover, VEP and snpEff are present in /data/VCFs. 
+Test datasets annotated with Annovar, VEP and snpEff are present in /data/VCFs. 
 
 The folder /data/annotation contains files with gene names and ensembl ids 
 downloaded from different versions of Ensemble. These are then added to the database
