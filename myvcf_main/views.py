@@ -76,6 +76,7 @@ def upload_project(request):
 
 
 def check_project_name(request):
+    # get project name from request
     project_name = request.POST['project_name']
     # __iexact is case-insensitive
     res = DbInfo.objects.filter(project_name__iexact=project_name).exists()
@@ -95,6 +96,7 @@ def delete_db(request):
 
     # Delete project from the database
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # TODO the path to the DB should be stored somewhere
     database = os.path.join(base_dir, "data/db/projects_data.sqlite3")
     conn = sqlite3.connect(database)
     try:
@@ -115,7 +117,6 @@ def delete_db(request):
     db.delete()
 
     print("Project {} deleted".format(project_name))
-
     msg_validate = "Project deleted"
     context = json.dumps({'project_name': project_name,
                           'msg_validate': msg_validate})
@@ -185,7 +186,7 @@ def preprocessing_vcf(request):
                           "software (Annovar, snpEff and VEP)."
                     valid = False
     except:
-        msg = "The file does not seem to be a valid VCF file..."
+        msg = "The file does not seem to be a valid VCF file."
         valid = False
 
     context = json.dumps({'annotation': annotation,
@@ -199,17 +200,13 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
     of the VCF file. 
     """
     import time
-    from numpy import mean
     from collections import defaultdict
 
     autoincremental_id = 1
     data = []
-    record_time = []
     start_time = time.time()
-
     print('Parsing VCF records')
     for record in vcf_handler:
-        start_record = time.time()
         values_dict = defaultdict(str, dict.fromkeys(columns_clean))
 
         # Get FILTER status [] = PASS
@@ -230,7 +227,7 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
 
         # INFO generation
         for key, info in record.INFO.items():
-            # TODO for now taking only the first record when multiple isoforms in a mutation
+            # TODO for now taking only the first record when multiple record in a mutation
             value = info[0] if type(info) == list else info
             value = int(value) if type(value) == bool else value
             if key == "CSQ":
@@ -252,13 +249,10 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
 
         autoincremental_id += 1
         data.append(tuple(values_dict.values()))
-        end_record = time.time()
-        record_time.append(end_record - start_record)
     print('VCF file parsed')
 
     # storing time
     vcf_store_time = time.time() - start_time
-    record_store_time = mean(record_time) * 1000
 
     # build query and upload the data to the database
     params = ("?," * len(columns_clean))[:-1]
@@ -276,7 +270,7 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
     finally:
         conn.close()
     loading_time = time.time() - start_time
-    return loading_time, vcf_store_time, record_store_time, autoincremental_id, success
+    return loading_time, vcf_store_time, autoincremental_id, success
 
 
 @login_required
@@ -302,13 +296,16 @@ def submit_vcf(request):
     # VEP = consequence
     # snpEff = annotation
     if sw_annotation == "annovar":
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_refgene', 'ac', 'af', 'exonicfunc_ensgene']
+        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 
+                       'gene_refgene', 'ac', 'af', 'exonicfunc_ensgene']
         mutation_col = 'exonicfunc_ensgene'
     elif sw_annotation == "vep":
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'symbol', 'ac', 'af', 'consequence']
+        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 
+                       'symbol', 'ac', 'af', 'consequence']
         mutation_col = 'consequence'
     elif sw_annotation == "snpeff":
-        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 'gene_name', 'ac', 'af', 'annotation']
+        default_col = ['chrom', 'pos', 'rs_id', 'ref', 'alt', 
+                       'gene_name', 'ac', 'af', 'annotation']
         mutation_col = 'annotation'
     else:
         return HttpResponse("Invalid annotation fields in the VCF file.")
@@ -392,10 +389,10 @@ def submit_vcf(request):
 
         # Add records to table
         print('Uploading VCF data to database')
-        loading_time, vcf_store_time, record_store_time, n_record, success = _populateDatabase(vcf_handler,
-                                                                                               database,
-                                                                                               project_name,
-                                                                                               columns_clean)
+        loading_time, vcf_store_time, n_record, success = _populateDatabase(vcf_handler,
+                                                                            database,
+                                                                            project_name,
+                                                                            columns_clean)
     if not success:
         # TODO remove table if not sucess 
         return HttpResponse("There was as an error uploading the VCF data to the database.")
@@ -424,7 +421,7 @@ def submit_vcf(request):
                'project_name': project_name,
                'loading_time': loading_time,
                'vcf_store_time': vcf_store_time,
-               'record_store_time': record_store_time,
+               'record_store_time': 1,
                'n_record_rate': n_record_rate,
                'n_record': n_record
                }

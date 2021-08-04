@@ -1,4 +1,4 @@
-Django
+django
 dj-database-url
 dj-static
 django-bootstrap-form
@@ -6,6 +6,6 @@ django-bootstrap-toolkit
 django-bootstrap3
 django-import-export
 static3
-PyVCF
+pyvcf
 numpy
 requests
