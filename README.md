@@ -1,6 +1,6 @@
 
 
-# MyVCF2: web-based tool for exploration of VCF files
+# MyVCF2: web-based tool for analysis and visualization of VCF files
 
 MyVCF2 is a tool that enables the storage, loading, querying and analysis of mutational
 data (SNPs and indels) stored in VCF files. The tool implements a simple django 
@@ -15,7 +15,7 @@ This tool is a modified version of the code present in [http://github.com/apietr
 
 ### Requirements 
 
-The tool requires well formed VCF files that have been annotated with either Annover,
+The tool requires well formed VCF files that have been annotated with either Annovar,
 VEP or snpEff. If multiple samples are available, it is recommended to merge them into
 a single VCF file. The tool will recognize the different samples and add them as different
 columns. 
