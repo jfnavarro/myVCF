@@ -12,13 +12,15 @@ import json
 import re
 import os
 import sys
-
+import time
+from collections import defaultdict
 from subprocess import check_output, CalledProcessError
 
 import vcf
 import sqlite3
 from myvcf_browser.base_models import DbInfo, Groups
 
+# name of the app in django 
 app_label = "myvcf_browser"
 
 # DB containing mutations
@@ -32,7 +34,7 @@ def user_login(request):
         # This information is obtained from the login form.
         username = request.POST['username']
         password = request.POST['password']
-        print("Authenticating {} {}".format(username, password))
+        print("Authenticating {}, {}".format(username, password))
         user = authenticate(username=username, password=password)
         if user is not None:
             # Is the account active? It could have been disabled.
@@ -43,7 +45,7 @@ def user_login(request):
             else:
                 return HttpResponse("Your account is disabled.")
         else:
-            print("Invalid login details: {0}, {1}".format(username, password))
+            print("Invalid login details: {}, {}".format(username, password))
             return HttpResponse("Invalid login details supplied.")
     # The request is not a HTTP POST, so display the login form.
     else:
@@ -53,12 +55,14 @@ def user_login(request):
 
 @login_required
 def user_logout(request):
+    # log out and redirect to home page
     logout(request)
     return HttpResponseRedirect('/')
 
 
 @login_required
 def main_page(request):
+    # Fetch the list of projects
     db_list = DbInfo.objects.values("project_name",
                                     "gene_annotation",
                                     "sw_annotation",
@@ -199,8 +203,6 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
     """Internal function to populate the database with the content
     of the VCF file. 
     """
-    import time
-    from collections import defaultdict
 
     autoincremental_id = 1
     data = []

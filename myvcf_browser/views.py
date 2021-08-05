@@ -383,7 +383,8 @@ def get_1000g_data(request, variant, project_name):
     if r.ok:
         response = r.ok
         data = r.json()
-        index = 1 if assembly_version == "hg19" else 0
+        # NOTE we pick the first but this may not be the best choice always
+        index = 0
         try:
             for pop, pop_value in list(data[0]['colocated_variants'][index]['frequencies'].values())[0].items():
                 res_data.append({"population": pop, "pop_af": pop_value})
@@ -738,7 +739,7 @@ def get_exonictype_variations(request, project_name):
 
     return JsonResponse({'plot_data': plot_data}, status=200)
 
-
+# TODO this function is slow, improve!
 def get_top_genes(request, project_name):
     # N genes and categories to display
     n_genes = 20
@@ -793,6 +794,31 @@ def get_top_genes(request, project_name):
                          'plot_data': plot_data}, status=200)
 
 
+def _plink(samples, mutations, project_name):
+    # generate PED/MAP string
+    # MAP file
+    # The fields in a MAP file are:
+    #    Chromosome
+    #    Marker ID
+    #    Genetic distance
+    #    Physical position
+    map = ""
+    for m in mutations:
+        map += ",".join([str(m.chrom), str(m.rs_id), "0", str(m.pos), "\n"])
+    ped = ""
+    for s in samples:
+        # Inizialize with sample information
+        s_ped = ",".join([project_name, s, "0", "0", "0", "0"])
+        # Get genotype
+        gt = getattr(m, s.lower(), "notfound")
+        for m in mutations:
+            if gt in ["0", "1", "2"]:
+                s_ped += "," + ",".join([m.ref, m.ref])
+            else:
+                s_ped += "," + ",".join(["0", "0"])
+        ped += s_ped + "\n"
+    return map, ped
+
 def plink_gene(request, project_name, gene_ensgene):
     def get_mutations_plink(model, sw_annotation, ensgene, project_db):
         # return the mutations and default_col of a particular gene based on the sw_annotation
@@ -800,7 +826,8 @@ def plink_gene(request, project_name, gene_ensgene):
             return model.objects.using(project_db).filter(gene_ensgene__iexact=ensgene)
         elif sw_annotation == "snpeff":
             return model.objects.using(project_db).filter(gene_id__iexact=ensgene)
-        return model.objects.using(project_db).filter(gene__iexact=ensgene)
+        else:
+            return model.objects.using(project_db).filter(gene__iexact=ensgene)
 
     # get the info of the project
     dbinfo = DbInfo.objects.filter(project_name=project_name).first()
@@ -810,39 +837,8 @@ def plink_gene(request, project_name, gene_ensgene):
                            model_name=project_name)
     mutations = get_mutations_plink(model, sw_annotation, gene_ensgene, project_db)
 
-    # generate PED/MAP string
-    # MAP file
-    # The fields in a MAP file are:
-    #    Chromosome
-    #    Marker ID
-    #    Genetic distance
-    #    Physical position
-    map = ""
-    ped = ""
-    for m in mutations:
-        s_map = ",".join([str(m.chrom),
-                          str(m.rs_id),
-                          "0",
-                          str(m.pos),
-                          "\n"])
-        map = map + s_map
-    for s in samples:
-        # Inizialize with sample information
-        s_ped = ",".join([project_name, s, "0", "0", "0", "0"])
-        # Get genotype
-        gt = getattr(m, s.lower(), "notfound")
-        for m in mutations:
-            if gt == "0":
-                s_ped = s_ped + "," + ",".join([m.ref, m.ref])
-            elif gt == "1":
-                s_ped = s_ped + "," + ",".join([m.ref, m.alt])
-            elif gt == "2":
-                s_ped = s_ped + "," + ",".join([m.alt, m.alt])
-            else:
-                s_ped = s_ped + "," + ",".join(["0", "0"])
-        s_ped = s_ped + "\n"
-        ped = ped + s_ped
-
+    # Compute the map and ped
+    map, ped = _plink(samples, mutations, project_name)
     map_filename = "_".join([project_name, gene_ensgene]) + ".map"
     ped_filename = "_".join([project_name, gene_ensgene]) + ".ped"
 
@@ -853,7 +849,7 @@ def plink_gene(request, project_name, gene_ensgene):
                           })
     return HttpResponse(context)
 
-
+# TODO most of this code is duplicated in plink_gene(..)
 def plink_region(request, project_name, region):
     def get_mutations_plink(model, region, project_db):
         # Split region in CHR, START, END
@@ -871,46 +867,13 @@ def plink_region(request, project_name, region):
                            model_name=project_name)
     mutations = get_mutations_plink(model, region, project_db)
 
-    # generate PED/MAP string
-    # MAP file
-    # The fields in a MAP file are:
-    #    Chromosome
-    #    Marker ID
-    #    Genetic distance
-    #    Physical position
-
-    map = ""
-    ped = ""
-    for m in mutations:
-        s_map = ",".join([str(m.chrom),
-                          str(m.rs_id),
-                          "0",
-                          str(m.pos),
-                          "\n"])
-        map = map + s_map
-    for s in samples:
-        # Inizialize with sample information
-        s_ped = ",".join([project_name, s, "0", "0", "0", "0"])
-        # Get genotype
-        gt = getattr(m, s.lower(), "notfound")
-        for m in mutations:
-            if gt == "0":
-                s_ped = s_ped + "," + ",".join([m.ref, m.ref])
-            elif gt == "1":
-                s_ped = s_ped + "," + ",".join([m.ref, m.alt])
-            elif gt == "2":
-                s_ped = s_ped + "," + ",".join([m.alt, m.alt])
-            else:
-                s_ped = s_ped + "," + ",".join(["0", "0"])
-        s_ped = s_ped + "\n"
-        ped = ped + s_ped
-
+    # Compute the map and ped
+    map, ped = _plink(samples, mutations, project_name)
     map_filename = "_".join([project_name, region]) + ".map"
     ped_filename = "_".join([project_name, region]) + ".ped"
 
     context = json.dumps({'map_filename': map_filename,
                           'map': map,
                           'ped_filename': ped_filename,
-                          'ped': ped,
-                          })
+                          'ped': ped})
     return HttpResponse(context)
