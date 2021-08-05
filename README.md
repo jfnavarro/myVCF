@@ -1,6 +1,6 @@
 
 
-# MyVCF2: web-based tool for analysis and visualization of VCF files
+# MyVCF2: web-based tool for analysis and visualization of mutations stored in VCF files
 
 MyVCF2 is a tool that enables the storage, loading, querying and analysis of mutational
 data (SNPs and indels) stored in VCF files. The tool implements a simple django 
