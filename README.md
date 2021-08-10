@@ -75,8 +75,9 @@ python manage.py createsuperuser
 # 1234admin
 ``` 
 
-The test VCF files were then loaded and stored so the tool is
-ready to be launched and tested with two test datasets. 
+### Test datasets
+Two test VCF files annodated with Annovar and VEP are located
+in /data/VCFs. They can be used to test and develop the tool. 
 
 ### Main functionalities
 
