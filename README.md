@@ -41,6 +41,7 @@ conda activate myvcf
 pip install -r requirements.txt
 python manage.py runserver
 # Open the internet browser and go to http://localhost:8000/
+# The user "admin" with password "1234admin" is already registered in the database
 ```
 
 To deploy the tool in a production environment the following
