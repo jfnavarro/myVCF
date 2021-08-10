@@ -154,41 +154,40 @@ def preprocessing_vcf(request):
 
     # Check if it is a correct VCF file with the corrent content
     try:
-        with open(vcf_file, 'r') as fhandler:
-            # Parse file
-            vcf_handler = vcf.Reader(fhandler)
+        # Parse file
+        vcf_handler = vcf.Reader(filename=vcf_file)
 
-            # Get the INFO fields
-            vcf_infos = list(vcf_handler.infos.keys())
+        # Get the INFO fields
+        vcf_infos = list(vcf_handler.infos.keys())
 
-            # Check if contains INFO fields
-            if len(vcf_infos) == 0:
-                msg = "The VCF file does not contain INFO fields..."
+        # Check if contains INFO fields
+        if len(vcf_infos) == 0:
+            msg = "The VCF file does not contain INFO fields..."
+            valid = False
+
+        # Check if contains at least 1 sample
+        if len(vcf_handler.samples) == 0 and valid:
+            msg = "The VCF file does not contain ANY sample genotype..."
+            valid = False
+
+        # Check if the VCF was annotated with supported software:
+        # Annovar = Gene_ensGene field, exonic annotation = ExonicFunc_ensGene
+        # VEP = CSQ field
+        # snpEff = ANN field
+        if valid:
+            is_annovar = annovar_field in vcf_infos
+            is_vep = vep_field in vcf_infos
+            is_snpeff = snpeff_field in vcf_infos
+            if is_snpeff:
+                annotation = "snpeff"
+            elif is_annovar:
+                annotation = "annovar"
+            elif is_vep:
+                annotation = "vep"
+            else:
+                msg = "The VCF file was not annotated with a supported " \
+                        "software (Annovar, snpEff and VEP)."
                 valid = False
-
-            # Check if contains at least 1 sample
-            if len(vcf_handler.samples) == 0 and valid:
-                msg = "The VCF file does not contain ANY sample genotype..."
-                valid = False
-
-            # Check if the VCF was annotated with supported software:
-            # Annovar = Gene_ensGene field, exonic annotation = ExonicFunc_ensGene
-            # VEP = CSQ field
-            # snpEff = ANN field
-            if valid:
-                is_annovar = annovar_field in vcf_infos
-                is_vep = vep_field in vcf_infos
-                is_snpeff = snpeff_field in vcf_infos
-                if is_snpeff:
-                    annotation = "snpeff"
-                elif is_annovar:
-                    annotation = "annovar"
-                elif is_vep:
-                    annotation = "vep"
-                else:
-                    msg = "The VCF file was not annotated with a supported " \
-                          "software (Annovar, snpEff and VEP)."
-                    valid = False
     except:
         msg = "The file does not seem to be a valid VCF file."
         valid = False
@@ -313,87 +312,86 @@ def submit_vcf(request):
 
     # Read the VCF
     print('Opening VCF file {}'.format(filename))
-    with open(filename, 'r') as fhandler:
-        vcf_handler = vcf.Reader(fhandler)
+    vcf_handler = vcf.Reader(filename=filename)
 
-        # Get the sample list 
-        samples = vcf_handler.samples
+    # Get the sample list 
+    samples = vcf_handler.samples
 
-        # get samples number
-        samples_len = len(vcf_handler.samples)
-        print('Number of samples in VCF file {}'.format(samples_len))
+    # get samples number
+    samples_len = len(vcf_handler.samples)
+    print('Number of samples in VCF file {}'.format(samples_len))
 
-        # Get attribute names to add them as columns in the table
-        table_columns = []
-        columns_clean = ["ID", "CHROM", "POS", "RS_ID", "REF", "ALT", "QUAL", "FILTER"]
-        for key, info in vcf_handler.infos.items():
-            # Get the attribute type
-            if info.type == "String":
-                table_type = "TEXT"
-            elif info.type == "Float":
-                table_type = "REAL"
-            elif info.type == "Integer":
-                table_type = "INTEGER"
-            elif info.type == "Flag":
-                table_type = "INTEGER"
-            else:
-                table_type = "TEXT"
-            # Get the attribute name
-            if key[0].isdigit():
-                table_columns.append('"u' + key + '" ' + table_type + ", ")
-                columns_clean.append(key)
-            elif key.startswith("GERP"):
-                table_columns.append('"GERP_RS"' + table_type + ", ")
-                columns_clean.append(key)
-            elif key == "CSQ":
-                start_pos = int(info.desc.index(":")) + 2
-                i = 1
-                for field in info.desc[start_pos:].split('|'):
-                    table_columns.append('"' + field.strip() + '" ' + "TEXT" + ", ")
-                    columns_clean.append("CSQ{}".format(i))
-                    i += 1
-            elif key == "ANN":
-                start_pos = int(info.desc.index(":")) + 3
-                i = 1
-                for field in info.desc[start_pos:].split('|')[:-1]:
-                    table_columns.append('"' + field.strip() + '" ' + "TEXT" + ", ")
-                    columns_clean.append("ANN{}".format(i))
-                    i += 1
-            else:
-                table_columns.append('"' + key + '" ' + table_type + ", ")
-                columns_clean.append(key)
+    # Get attribute names to add them as columns in the table
+    table_columns = []
+    columns_clean = ["ID", "CHROM", "POS", "RS_ID", "REF", "ALT", "QUAL", "FILTER"]
+    for key, info in vcf_handler.infos.items():
+        # Get the attribute type
+        if info.type == "String":
+            table_type = "TEXT"
+        elif info.type == "Float":
+            table_type = "REAL"
+        elif info.type == "Integer":
+            table_type = "INTEGER"
+        elif info.type == "Flag":
+            table_type = "INTEGER"
+        else:
+            table_type = "TEXT"
+        # Get the attribute name
+        if key[0].isdigit():
+            table_columns.append('"u' + key + '" ' + table_type + ", ")
+            columns_clean.append(key)
+        elif key.startswith("GERP"):
+            table_columns.append('"GERP_RS"' + table_type + ", ")
+            columns_clean.append(key)
+        elif key == "CSQ":
+            start_pos = int(info.desc.index(":")) + 2
+            i = 1
+            for field in info.desc[start_pos:].split('|'):
+                table_columns.append('"' + field.strip() + '" ' + "TEXT" + ", ")
+                columns_clean.append("CSQ{}".format(i))
+                i += 1
+        elif key == "ANN":
+            start_pos = int(info.desc.index(":")) + 3
+            i = 1
+            for field in info.desc[start_pos:].split('|')[:-1]:
+                table_columns.append('"' + field.strip() + '" ' + "TEXT" + ", ")
+                columns_clean.append("ANN{}".format(i))
+                i += 1
+        else:
+            table_columns.append('"' + key + '" ' + table_type + ", ")
+            columns_clean.append(key)
 
-        # Get sample names to add them as columns in the table
-        sampleStatement = ""
-        for sample in vcf_handler.samples:
-            sampleStatement += '"' + sample + '"' + " TEXT, "
-            columns_clean.append(sample)
+    # Get sample names to add them as columns in the table
+    sampleStatement = ""
+    for sample in vcf_handler.samples:
+        sampleStatement += '"' + sample + '"' + " TEXT, "
+        columns_clean.append(sample)
 
-        # Build query
-        drop_query = "DROP TABLE IF EXISTS {};".format(project_name)
-        defaultStatement = "CREATE TABLE {} " \
-                            "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
-                            "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, ".format(project_name)
-        query = defaultStatement + ''.join(table_columns) + sampleStatement[:-2] + ");"
+    # Build query
+    drop_query = "DROP TABLE IF EXISTS {};".format(project_name)
+    defaultStatement = "CREATE TABLE {} " \
+                        "(ID INT PRIMARY KEY NOT NULL, CHROM TEXT NOT NULL, POS INT NOT NULL, " \
+                        "RS_ID TEXT, REF TEXT NOT NULL, ALT TEXT, QUAL REAL, FILTER TEXT, ".format(project_name)
+    query = defaultStatement + ''.join(table_columns) + sampleStatement[:-2] + ");"
 
-        # Create table
-        conn = sqlite3.connect(database)
-        try:
-            with conn:
-                conn.execute(drop_query)
-                conn.execute(query)
-        except Exception as e:
-            print("Error creating table from VCF data {}".format(e))
-            return HttpResponse("The VCF file seems to be malformed (table could not be created).")
-        finally:
-            conn.close()
+    # Create table
+    conn = sqlite3.connect(database)
+    try:
+        with conn:
+            conn.execute(drop_query)
+            conn.execute(query)
+    except Exception as e:
+        print("Error creating table from VCF data {}".format(e))
+        return HttpResponse("The VCF file seems to be malformed (table could not be created).")
+    finally:
+        conn.close()
 
-        # Add records to table
-        print('Uploading VCF data to database')
-        loading_time, vcf_store_time, n_record, success = _populateDatabase(vcf_handler,
-                                                                            database,
-                                                                            project_name,
-                                                                            columns_clean)
+    # Add records to table
+    print('Uploading VCF data to database')
+    loading_time, vcf_store_time, n_record, success = _populateDatabase(vcf_handler,
+                                                                        database,
+                                                                        project_name,
+                                                                        columns_clean)
     if not success:
         # Remove table if not success
         conn = sqlite3.connect(database)
