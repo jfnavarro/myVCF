@@ -21,10 +21,10 @@ import sqlite3
 from myvcf_browser.base_models import DbInfo, Groups
 
 # name of the app in django 
-app_label = "myvcf_browser"
+APP_LABEL = "myvcf_browser"
 
 # DB containing mutations
-project_db = "projects"
+PROJECT_DB = "projects"
 
 
 def user_login(request):
@@ -93,10 +93,10 @@ def delete_db(request):
     project_name = request.POST['project_name']
 
     # get the model
-    model = apps.get_model(app_label=app_label, model_name=project_name)
+    model = apps.get_model(app_label=APP_LABEL, model_name=project_name)
 
     # Delete project from the model
-    model.objects.using(project_db).all().delete()
+    model.objects.using(PROJECT_DB).all().delete()
 
     # Delete project from the database
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -119,6 +119,7 @@ def delete_db(request):
     # Update model
     db = DbInfo.objects.get(project_name=project_name)
     db.delete()
+    _updateModel()
 
     print("Project {} deleted".format(project_name))
     msg_validate = "Project deleted"
@@ -162,7 +163,6 @@ def preprocessing_vcf(request):
 
             # Check if contains INFO fields
             if len(vcf_infos) == 0:
-                print(vcf_infos)
                 msg = "The VCF file does not contain INFO fields..."
                 valid = False
 
@@ -203,7 +203,6 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
     """Internal function to populate the database with the content
     of the VCF file. 
     """
-
     autoincremental_id = 1
     data = []
     start_time = time.time()
@@ -396,12 +395,16 @@ def submit_vcf(request):
                                                                             project_name,
                                                                             columns_clean)
     if not success:
-        # TODO remove table if not sucess 
+        # Remove table if not success
+        conn = sqlite3.connect(database)
+        with conn:
+            conn.execute(drop_query)
+            conn.close()
         return HttpResponse("There was as an error uploading the VCF data to the database.")
 
     n_record_rate = n_record / vcf_store_time
 
-    # Add dataset info to DB in myVCF_DB--> dbinfo
+    # Add dataset info to django model--> dbinfo
     print('Adding dataset info to the database')
     db = DbInfo.objects.create(project_name=project_name,
                                gene_annotation=annotation_version,
@@ -438,13 +441,13 @@ def submit_vcf(request):
 def _updateModel():
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     manage_script = os.path.join(base_dir, "manage.py")
-    models = os.path.join(base_dir, app_label, "models.py")
+    models = os.path.join(base_dir, APP_LABEL, "models.py")
     python_bin = sys.executable
     command = [python_bin,
                manage_script,
                "inspectdb",
                "--database",
-               project_db]
+               PROJECT_DB]
     try:
         print("Modyfing model with command {}".format(command))
         m = check_output(command)

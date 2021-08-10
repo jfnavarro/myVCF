@@ -197,7 +197,6 @@
                 if (field === 'new_group_name' && validator === 'remote') {
                     var msg = data.result.msg_validate;
                     $("#warnMsg_group_name").hide();
-                    // console.log("Check");
                     // Show a valid message
                     $("#validMsg_group_name").html("<p>The Group name is good!</p>");
                 }
@@ -318,6 +317,7 @@
                     <small class="text-muted">This dropdown menu shows all the field in the VCF</small><br>
                     <small class="text-muted">Annovar default: Exonicfunc_ensgene</small><br>
                     <small class="text-muted">VEP default: Consequence</small>
+                    <small class="text-muted">snpEff default: Annotation</small>
                 </div>
             </div>
             <!-- END MUTATION TYPE -->

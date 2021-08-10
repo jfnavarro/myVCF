@@ -101,6 +101,7 @@ STATICFILES_DIRS = (os.path.join(BASE_DIR, "data"),)
 
 STATIC_URL = '/static/'
 
+# TODO this seems unnecessary 
 if DEBUG:
    STATIC_ROOT = os.path.join(BASE_DIR, '/static')
 else:

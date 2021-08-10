@@ -493,7 +493,7 @@ def check_group_name(request, project_name):
     res = Groups.objects.filter(project_name__iexact=project_name)
 
     # check if given group if in list of groups
-    isValid = group_name in [g.group_name for g in res]
+    isValid = group_name not in [g.group_name for g in res]
 
     context = json.dumps({'valid': isValid})
     return HttpResponse(context)
