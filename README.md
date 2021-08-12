@@ -50,8 +50,9 @@ steps must be followed:
 * Update the secret key in myvcf_main/settings.py (KEEP THIS SAFE). 
 * Copy the mysql3 databases to somewhere local. 
 * Update myvcf_main/settings.py to the new location of the databases. 
+* Update myvcf_main/settings.py to add your host to ALLOWED_HOSTS
 * Create a super user using python manage.py createsuperuser
-* Configure access trough a WSGI server and deploy the tool. 
+* Configure access trough a WSGI server or similar and deploy the tool. 
 
 ### Configuration
 
