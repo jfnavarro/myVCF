@@ -30,7 +30,7 @@ The following fields are required for each of the annotation tools:
 
 We recommend to use Anaconda or similar (Python 3).
 
-Instructions on how to deploy the tool in a local environment:
+Instructions on how to deploy the tool in a local/dev environment:
 
 
 ``` shell
@@ -51,8 +51,7 @@ steps must be followed:
 * Copy the mysql3 databases to somewhere local. 
 * Update myvcf_main/settings.py to the new location of the databases. 
 * Create a super user using python manage.py createsuperuser
-* Deploy the tool (recommend to use a cron job or similar). 
-* Configure a gateway with a public IP and ensure secure access (firewall and HTTPS). 
+* Configure access trough a WSGI server and deploy the tool. 
 
 ### Configuration
 
