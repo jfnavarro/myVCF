@@ -8,4 +8,3 @@
 * Create deployment scripts
 * Move the databases outside the Github project
 * Update the JavaScript and Ajax libraries 
-* Add support for bgzip/gzip/bzip files
