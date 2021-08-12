@@ -125,20 +125,20 @@ def search(request, project_name):
         results = model_ensembl.objects.filter(genename__icontains=query).values('ensgene', 
                                                                                  'genename',
                                                                                  'description').distinct()
-
         # Get mutation count for the gene ids matching the given gene
         final_results = []
         for res in results:
             ensgene_id = res['ensgene']
             if sw_annotation == "annovar":
-                count = model_project.objects.using(project_db).filter(gene_ensgene__iexact=ensgene_id).count()
+                count = model_project.objects.using(project_db).filter(gene_ensgene__icontains=ensgene_id).count()
             elif sw_annotation == "snpeff":
-                count = model_project.objects.using(project_db).filter(gene_id_iexact=ensgene_id).count()
+                count = model_project.objects.using(project_db).filter(gene_id__icontains=ensgene_id).count()
             else:
-                count = model_project.objects.using(project_db).filter(gene__iexact=ensgene_id).count()
+                count = model_project.objects.using(project_db).filter(gene__icontains=ensgene_id).count()
+            print(count)
             res['mut_count'] = count
             final_results.append(res)
-
+        print(final_results)
         # Send results back
         context = {'query': query,
                    'results': final_results,

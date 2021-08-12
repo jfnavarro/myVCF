@@ -210,7 +210,7 @@ def _populateDatabase(vcf_handler, database, project_name, columns_clean):
         values_dict = defaultdict(str, dict.fromkeys(columns_clean))
 
         # Get FILTER status [] = PASS
-        if record.FILTER == []:
+        if record.FILTER is None or record.FILTER == []:
             filter_string = "PASS"
         else:
             filter_string = ''.join(record.FILTER)
@@ -447,7 +447,6 @@ def _updateModel():
                "--database",
                PROJECT_DB]
     try:
-        print("Modyfing model with command {}".format(command))
         m = check_output(command)
         with open(models, "w") as fm:
             fm.write(re.sub('managed = False\n', "", m.decode('utf-8')))
