@@ -28,8 +28,6 @@ The following fields are required for each of the annotation tools:
 
 ### Deployment
 
-We recommend to use Anaconda or similar (Python 3).
-
 Instructions on how to deploy the tool with Anaconda:
 
 
@@ -60,10 +58,12 @@ docker-compose up
 To deploy the tool in a production environment the following
 steps must be followed:
 
-* Update the secret key in .env (KEEP THIS SAFE). 
-* Deploy the tool (recommend to use a cron job or similar). 
-* Configure a gateway with a public IP and ensure secure access (firewall and HTTPS).
-* Access the tool using the IP in the previous step or a hostname if a DNS server is in place
+* Update the secret key in .env  (KEEP THIS SAFE). 
+* Copy the mysql3 databases to somewhere local. 
+* Update myvcf_main/settings.py to the new location of the databases. 
+* Update .env to add your host to ALLOWED_HOSTS
+* Create a super user using python manage.py createsuperuser
+* Configure access trough a WSGI server or similar and deploy the tool
 * Change the password of the admin user
 
 ### Configuration
