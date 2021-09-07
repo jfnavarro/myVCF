@@ -1,13 +1,15 @@
 from django.conf.urls import include, url
 from django.conf import settings
+from django.contrib import admin
 from django.views.static import serve
 from myvcf_main import views as myVCF_view
 from myvcf_browser import urls as myVCF_urls
 
 urlpatterns = [
     url(r'^$', myVCF_view.main_page),
-    url(r'^login/$', myVCF_view.user_login, name='login'),
-    url(r'^logout/$', myVCF_view.user_logout, name='logout'),
+    url(r'^login/$', myVCF_view.user_login),
+    url(r'^logout/$', myVCF_view.user_logout),
+    url('admin/', admin.site.urls),
     url(r'^delete_db/$', myVCF_view.delete_db),
     url(r'^upload/$', myVCF_view.upload_project),
     url(r'^upload/preprocessing_vcf/$', myVCF_view.preprocessing_vcf),

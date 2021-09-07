@@ -1,0 +1,20 @@
+name: myvcf
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+- python=3.6
+- pip
+- pip:
+  - django
+  - dj-database-url
+  - dj-static
+  - django-bootstrap-form
+  - django-bootstrap-toolkit
+  - django-bootstrap3
+  - django-import-export
+  - static3
+  - pyvcf
+  - numpy
+  - requests

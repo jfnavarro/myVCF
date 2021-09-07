@@ -5,6 +5,7 @@ from django.shortcuts import render
 from django.apps import apps
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin import views as admin_views 
 from django.template import RequestContext
 from django.core.exceptions import BadRequest, RequestAborted
 
