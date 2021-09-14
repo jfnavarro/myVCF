@@ -5,6 +5,7 @@ channels:
   - defaults
 dependencies:
 - python=3.6
+- pyvcf
 - pip
 - pip:
   - django
@@ -15,6 +16,5 @@ dependencies:
   - django-bootstrap3
   - django-import-export
   - static3
-  - pyvcf
   - numpy
   - requests

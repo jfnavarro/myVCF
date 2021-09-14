@@ -36,6 +36,10 @@ git clone https://github.com/jfnavarro/myVCF.git
 cd myVCF
 conda env create -f environment.yml
 conda activate myvcf
+# set to 0 for production
+export DEBUG=1
+export SECRET_KEY=yourkey
+export DJANGO_ALLOWED_HOSTS="localhost 127.0.0.1 [::1]"
 python manage.py runserver
 # Open the internet browser and go to http://localhost:8000/
 # The user "admin" with password "1234admin" is already registered in the database
@@ -48,8 +52,9 @@ Instructions on how to deploy the tool with Docker:
 ``` shell
 git clone https://github.com/jfnavarro/myVCF.git
 cd myVCF
+# .env contains 3 environment variables that are used to deploy (DEBUG, SECRET_KEY and ALLOWED_HOSTS)
 docker-compose build
-docker-compose up
+docker-compose up --detach
 # Open the internet browser and go to http://localhost:8000/
 # The user "admin" with password "1234admin" is already registered in the database
 # Go to http://localhost:8000/admin to change the password
@@ -58,13 +63,12 @@ docker-compose up
 To deploy the tool in a production environment the following
 steps must be followed:
 
-* Update the secret key in .env  (KEEP THIS SAFE). 
-* Copy the mysql3 databases to somewhere local. 
-* Update myvcf_main/settings.py to the new location of the databases. 
-* Update .env to add your host to ALLOWED_HOSTS
+* Update the secret key in .env (KEEP THIS SAFE)
+* Update .env to add your host to ALLOWED_HOSTS (if needed)
+* Update .env to set DEBUG to 0
 * Create a super user using python manage.py createsuperuser
-* Configure access trough a WSGI server or similar and deploy the tool
-* Change the password of the admin user
+* Deploy the tool (see instructions above)
+* To change the password of the super user (http://ADDRESS/admin)
 
 ### Configuration
 
